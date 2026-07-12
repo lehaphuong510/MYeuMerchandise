@@ -15,6 +15,8 @@ if "search_query" not in st.session_state:
     st.session_state.search_query = ""
 if "success_msg" not in st.session_state:
     st.session_state.success_msg = ""
+if "just_delivered" not in st.session_state:
+    st.session_state.just_delivered = False
 
 # Danh sách mật khẩu cấp riêng cho từng người
 VALID_PASSWORDS = {"CHECKIN-AN": "An", "CHECKIN-BINH": "Bình", "CHECKIN-CHAU": "Châu", "0519": "Lê Phương"}
@@ -157,6 +159,8 @@ search_input = st.text_input("Nhập số điện thoại vào đây", label_vis
 
 if st.button("Tìm giúp MYêu"):
     st.session_state.search_query = search_input
+    # Hạ cờ xuống khi bấm tìm kiếm mới
+    st.session_state.just_delivered = False 
 
 if st.session_state.search_query:
     clean_input = st.session_state.search_query.replace(" ", "")
@@ -179,7 +183,6 @@ if st.session_state.search_query:
             
             # --- LÀM SẠCH DATA ĐÃ GIAO ĐỂ SO SÁNH CHÍNH XÁC ---
             if not df_delivered.empty and 'ĐT' in df_delivered.columns and 'Tên Hàng' in df_delivered.columns:
-                # Ép kiểu chuẩn: xóa khoảng trắng, xóa số 0 ở đầu, xóa đuôi .0 (nếu Google Sheets tự thêm vào)
                 df_delivered['ĐT_Clean'] = df_delivered['ĐT'].astype(str).str.strip().str.lstrip("0").str.replace(".0", "", regex=False)
                 df_delivered['Tên_Hàng_Clean'] = df_delivered['Tên Hàng'].astype(str).str.strip()
             
@@ -188,7 +191,6 @@ if st.session_state.search_query:
             delivered_count = 0
             
             for _, row in matched_df.iterrows():
-                # Làm sạch số điện thoại lấy từ file gốc
                 phone_val = str(row['ĐT']).strip().lstrip("0").replace(".0", "")
                 full_item_name = str(row['Tên Hàng']).strip()
                 
@@ -197,12 +199,12 @@ if st.session_state.search_query:
                     if not check.empty:
                         delivered_count += 1
                         
-            # Nếu đã nhận đủ số món, khóa hiển thị sản phẩm
-            if delivered_count == total_items:
+            # NẾU NHẬN ĐỦ RỒI + KHÔNG PHẢI VỪA BẤM NÚT XONG -> GIẤU ĐI
+            if delivered_count == total_items and not st.session_state.just_delivered:
                 st.success("✅ BẠN NÀY ĐÃ NHẬN TOÀN BỘ HÀNG RỒI!")
                 st.info("Hệ thống đã ẩn chi tiết để tránh nhầm lẫn. Chuyển sang quét bạn tiếp theo nha!")
             else:
-                # Nếu chưa nhận hoặc nhận chưa đủ, hiển thị danh sách như bình thường
+                # NẾU CHƯA NHẬN ĐỦ, HOẶC VỪA MỚI BẤM XONG -> HIỆN LIST RA CHO THẤY
                 for index, row in matched_df.iterrows():
                     raw_phone = str(row['ĐT'])
                     phone_val = raw_phone.strip().lstrip("0").replace(".0", "")
@@ -232,9 +234,10 @@ if st.session_state.search_query:
                             st.button("✅ Đã nhận hàng", key=f"done_{index}", disabled=True)
                         else:
                             if st.button("Đã giao hàng", key=f"deliver_{index}"):
-                                # Vẫn giữ nguyên raw_phone để bắn lên Google Sheets có đủ số 0 cho đẹp
                                 mark_as_delivered(raw_phone, full_item_name, st.session_state.admin_id)
                                 st.session_state.success_msg = "✅ Đã ghi nhận lên Google Sheet thành công!"
+                                # Cắm cờ báo hiệu là "Tao mới bấm đó, đừng có ẩn của tao nha!"
+                                st.session_state.just_delivered = True 
                                 st.rerun()
 
 # --- THỐNG KÊ KHO (CUSTOM HTML TABLE) ---
