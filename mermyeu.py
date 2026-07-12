@@ -180,16 +180,13 @@ st.markdown('<div class="section-title">📊 THỐNG KÊ KHO MERCHANDISE</div>',
 if not df_main.empty:
     df_main['SL'] = pd.to_numeric(df_main['SL'], errors='coerce').fillna(0)
     
-    # Bắt đầu vẽ bảng HTML
-    html_table = """
-    <table style="width: 100%; border-collapse: collapse; font-family: sans-serif; text-align: center; margin-bottom: 20px;">
-        <tr style="border-bottom: 2px solid #8B008B; color: #8B008B; background-color: #f9f9f9;">
-            <th style="text-align: left; padding: 12px;">Loại Merchandise</th>
-            <th style="padding: 12px;">Tổng SL</th>
-            <th style="padding: 12px;">Đã nhận</th>
-            <th style="padding: 12px;">Còn lại</th>
-        </tr>
-    """
+    # Gom HTML thành chuỗi liên tục, KHÔNG thụt đầu dòng để tránh bị hiểu nhầm là Code Block
+    html_table = "<table style='width: 100%; border-collapse: collapse; font-family: sans-serif; text-align: center; margin-bottom: 20px;'>"
+    html_table += "<tr style='border-bottom: 2px solid #8B008B; color: #8B008B; background-color: #f9f9f9;'>"
+    html_table += "<th style='text-align: left; padding: 12px;'>Loại Merchandise</th>"
+    html_table += "<th style='padding: 12px;'>Tổng SL</th>"
+    html_table += "<th style='padding: 12px;'>Đã nhận</th>"
+    html_table += "<th style='padding: 12px;'>Còn lại</th></tr>"
     
     merch_list = df_main['Loại Merchandise'].dropna().unique()
     
@@ -218,29 +215,24 @@ if not df_main.empty:
             size_remain = size_sl - size_delivered
             total_delivered_for_merch += size_delivered
             
-            size_rows_html += f"""
-            <tr style="border-bottom: 1px solid #eee;">
-                <td style="text-align: left; padding: 8px 10px 8px 30px; color: #444; font-size: 0.95rem;">↳ Size {size}</td>
-                <td style="padding: 8px;">{int(size_sl)}</td>
-                <td style="padding: 8px;">{int(size_delivered)}</td>
-                <td style="padding: 8px;">{int(size_remain)}</td>
-            </tr>
-            """
+            size_rows_html += f"<tr style='border-bottom: 1px solid #eee;'>"
+            size_rows_html += f"<td style='text-align: left; padding: 8px 10px 8px 30px; color: #444; font-size: 0.95rem;'>↳ Size {size}</td>"
+            size_rows_html += f"<td style='padding: 8px;'>{int(size_sl)}</td>"
+            size_rows_html += f"<td style='padding: 8px;'>{int(size_delivered)}</td>"
+            size_rows_html += f"<td style='padding: 8px;'>{int(size_remain)}</td></tr>"
             
         # Cộng thêm số lượng đã giao của những dòng không có size (nếu có)
         no_size_delivered = len(df_delivered[df_delivered['Tên Hàng'] == merch]) if not df_delivered.empty else 0
         total_delivered_for_merch += no_size_delivered
         total_remain = total_sl - total_delivered_for_merch
         
-        # Vẽ HÀNG TỔNG CỦA MERCH (In đậm, Gradient)
-        html_table += f"""
-        <tr style="background-color: #fef5fa; border-top: 1px solid #ddd;">
-            <td style="text-align: left; padding: 12px; font-weight: bold; background: linear-gradient(90deg, #C71585, #8B008B); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{merch}</td>
-            <td style="padding: 12px; font-weight: bold;">{int(total_sl)}</td>
-            <td style="padding: 12px; font-weight: bold;">{int(total_delivered_for_merch)}</td>
-            <td style="padding: 12px; font-weight: bold;">{int(total_remain)}</td>
-        </tr>
-        """
+        # Vẽ HÀNG TỔNG CỦA MERCH (In đậm, Gradient hồng sang tím)
+        html_table += f"<tr style='background-color: #fef5fa; border-top: 1px solid #ddd;'>"
+        html_table += f"<td style='text-align: left; padding: 12px; font-weight: bold; background: linear-gradient(90deg, #C71585, #8B008B); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>{merch}</td>"
+        html_table += f"<td style='padding: 12px; font-weight: bold;'>{int(total_sl)}</td>"
+        html_table += f"<td style='padding: 12px; font-weight: bold;'>{int(total_delivered_for_merch)}</td>"
+        html_table += f"<td style='padding: 12px; font-weight: bold;'>{int(total_remain)}</td></tr>"
+        
         # Nối các hàng size (nếu có) vào ngay dưới hàng tổng
         html_table += size_rows_html
 
