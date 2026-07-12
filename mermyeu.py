@@ -180,7 +180,6 @@ st.markdown('<div class="section-title">📊 THỐNG KÊ KHO MERCHANDISE</div>',
 if not df_main.empty:
     df_main['SL'] = pd.to_numeric(df_main['SL'], errors='coerce').fillna(0)
     
-    # Gom HTML thành chuỗi liên tục, KHÔNG thụt đầu dòng để tránh bị hiểu nhầm là Code Block
     html_table = "<table style='width: 100%; border-collapse: collapse; font-family: sans-serif; text-align: center; margin-bottom: 20px;'>"
     html_table += "<tr style='border-bottom: 2px solid #8B008B; color: #8B008B; background-color: #f9f9f9;'>"
     html_table += "<th style='text-align: left; padding: 12px;'>Loại Merchandise</th>"
@@ -198,9 +197,9 @@ if not df_main.empty:
         sizes = merch_df['Size áo'].dropna().unique()
         valid_sizes = [s for s in sizes if str(s).strip() != '' and str(s).lower() != 'nan']
         
-        # Sắp xếp size theo chuẩn S, M, L...
+        # FIX 1: Thêm strip() để gọt khoảng trắng thừa, giúp Package xếp đúng S -> M -> L
         size_order = {"S": 1, "M": 2, "L": 3, "XL": 4, "XXL": 5}
-        valid_sizes.sort(key=lambda x: size_order.get(str(x).upper(), 99))
+        valid_sizes.sort(key=lambda x: size_order.get(str(x).strip().upper(), 99))
         
         size_rows_html = ""
         total_delivered_for_merch = 0
@@ -226,12 +225,14 @@ if not df_main.empty:
         total_delivered_for_merch += no_size_delivered
         total_remain = total_sl - total_delivered_for_merch
         
-        # Vẽ HÀNG TỔNG CỦA MERCH (In đậm, Gradient hồng sang tím)
+        # FIX 2: Bọc chung 1 style gradient cho cả Chữ và Số ở hàng Tổng
+        gradient_style = "padding: 12px; font-weight: bold; background: linear-gradient(90deg, #C71585, #8B008B); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"
+        
         html_table += f"<tr style='background-color: #fef5fa; border-top: 1px solid #ddd;'>"
-        html_table += f"<td style='text-align: left; padding: 12px; font-weight: bold; background: linear-gradient(90deg, #C71585, #8B008B); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>{merch}</td>"
-        html_table += f"<td style='padding: 12px; font-weight: bold;'>{int(total_sl)}</td>"
-        html_table += f"<td style='padding: 12px; font-weight: bold;'>{int(total_delivered_for_merch)}</td>"
-        html_table += f"<td style='padding: 12px; font-weight: bold;'>{int(total_remain)}</td></tr>"
+        html_table += f"<td style='text-align: left; {gradient_style}'>{merch}</td>"
+        html_table += f"<td style='{gradient_style}'>{int(total_sl)}</td>"
+        html_table += f"<td style='{gradient_style}'>{int(total_delivered_for_merch)}</td>"
+        html_table += f"<td style='{gradient_style}'>{int(total_remain)}</td></tr>"
         
         # Nối các hàng size (nếu có) vào ngay dưới hàng tổng
         html_table += size_rows_html
