@@ -258,14 +258,15 @@ st.markdown("---")
 with st.expander("🛠️ Admin: Quản lý File Giao Hàng & Reset"):
     st.markdown("**Cách lấy file data đầu ra:** Chỉ cần bấm vào nút tải xuống bên dưới.")
     
-    if os.path.exists(DELIVERED_FILE):
-        with open(DELIVERED_FILE, "rb") as file:
-            st.download_button(
-                label="📥 Tải file Danh sách Đã giao hàng (.csv)",
-                data=file,
-                file_name="danh_sach_da_giao.csv",
-                mime="text/csv"
-            )
+    # ÉP CHUẨN UTF-8-SIG (CÓ BOM) ĐỂ EXCEL KHÔNG BỊ LỖI FONT TIẾNG VIỆT
+    if not df_delivered.empty:
+        csv_data = df_delivered.to_csv(index=False).encode('utf-8-sig')
+        st.download_button(
+            label="📥 Tải file Danh sách Đã giao hàng (.csv)",
+            data=csv_data,
+            file_name="danh_sach_da_giao.csv",
+            mime="text/csv"
+        )
     else:
         st.info("Chưa có ai nhận hàng nên chưa có file.")
         
