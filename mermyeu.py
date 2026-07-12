@@ -17,7 +17,7 @@ if "success_msg" not in st.session_state:
     st.session_state.success_msg = ""
 
 # Danh sách mật khẩu cấp riêng cho từng người
-VALID_PASSWORDS = {"CHECKIN-AN": "An", "CHECKIN-BINH": "Bình", "CHECKIN-CHAU": "Châu", "MYEU-ADMIN": "Admin"}
+VALID_PASSWORDS = {"CHECKIN-AN": "An", "CHECKIN-BINH": "Bình", "CHECKIN-CHAU": "Châu", "0519": "Phuong"}
 
 if not st.session_state.authenticated:
     st.markdown("### 🔒 Cổng kiểm soát nội bộ")
