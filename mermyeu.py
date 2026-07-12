@@ -149,8 +149,8 @@ if st.session_state.search_query:
             for index, row in matched_df.iterrows():
                 phone_val = str(row['ĐT'])
                 merch_val = str(row.get('Loại Merchandise', ''))
-                qty_val = row.get('SL', '0')
                 size_val = str(row.get('Size áo', '')).strip()
+                qty_val = row.get('SL', '0')
                 full_item_name = row['Tên Hàng'] 
                 
                 is_delivered = False
