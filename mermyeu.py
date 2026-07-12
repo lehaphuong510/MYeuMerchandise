@@ -56,7 +56,7 @@ st.markdown("""
 st.markdown('<div class="main-title"><span>MYÊU MERCHANDISE</span><span>PICK AT EVENT</span></div>', unsafe_allow_html=True)
 
 # --- THIẾT LẬP DỮ LIỆU ---
-GSHEET_URL = "https://docs.google.com/spreadsheets/d/1tHLQoD_HkU9l_aqXnidH840y_KjO-T9F_3lGpRfQqW4/export?format=csv&gid=0"
+GSHEET_URL = "https://docs.google.com/spreadsheets/d/1tHLQoD_HkU9l_aqXnidH840y_KjO-T9F_3lGpRfQqW4/export?format=csv&gid=724869545"
 DELIVERED_FILE = "delivered_log.csv"
 
 @st.cache_data(ttl=5) # Load lại data gốc mỗi 5s
