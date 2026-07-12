@@ -177,36 +177,55 @@ if st.session_state.search_query:
             st.markdown(f"**Thông tin người nhận:** <span class='highlight-text'>{user_name}</span>", unsafe_allow_html=True)
             st.markdown("---")
             
-            for index, row in matched_df.iterrows():
+            # --- KIỂM TRA XEM ĐÃ NHẬN ĐỦ TOÀN BỘ CHƯA ---
+            total_items = len(matched_df)
+            delivered_count = 0
+            
+            for _, row in matched_df.iterrows():
                 phone_val = str(row['ĐT'])
-                merch_val = str(row.get('Loại Merchandise', ''))
-                qty_val = row.get('SL', '0')
-                size_val = str(row.get('Size áo', '')).strip()
+                full_item_name = row['Tên Hàng']
                 
-                if size_val.lower().startswith('size'):
-                    size_val = size_val[4:].strip()
-                    
-                full_item_name = row['Tên Hàng'] 
-                
-                is_delivered = False
                 if not df_delivered.empty and 'ĐT' in df_delivered.columns and 'Tên Hàng' in df_delivered.columns:
                     check = df_delivered[(df_delivered['ĐT'].astype(str) == phone_val) & (df_delivered['Tên Hàng'] == full_item_name)]
                     if not check.empty:
-                        is_delivered = True
-
-                with st.container(border=True):
-                    st.markdown(f"**Merchandise:** <span class='highlight-text'>{merch_val}</span>", unsafe_allow_html=True)
-                    if pd.notna(row.get('Size áo')) and size_val != '' and size_val.lower() != 'nan':
-                        st.markdown(f"**Size áo:** <span class='highlight-text'>{size_val}</span>", unsafe_allow_html=True)
-                    st.markdown(f"**Số lượng:** <span class='highlight-text'>{qty_val}</span>", unsafe_allow_html=True)
+                        delivered_count += 1
+                        
+            # Nếu đã nhận đủ số món, khóa hiển thị sản phẩm
+            if delivered_count == total_items:
+                st.success("✅ BẠN NÀY ĐÃ NHẬN TOÀN BỘ HÀNG RỒI!")
+                st.info("Hệ thống đã ẩn chi tiết để tránh nhầm lẫn. Chuyển sang quét bạn tiếp theo nha!")
+            else:
+                # Nếu chưa nhận hoặc nhận chưa đủ, hiển thị danh sách như bình thường
+                for index, row in matched_df.iterrows():
+                    phone_val = str(row['ĐT'])
+                    merch_val = str(row.get('Loại Merchandise', ''))
+                    qty_val = row.get('SL', '0')
+                    size_val = str(row.get('Size áo', '')).strip()
                     
-                    if is_delivered:
-                        st.button("✅ Đã nhận hàng", key=f"done_{index}", disabled=True)
-                    else:
-                        if st.button("Đã giao hàng", key=f"deliver_{index}"):
-                            mark_as_delivered(phone_val, full_item_name, st.session_state.admin_id)
-                            st.session_state.success_msg = "✅ Đã ghi nhận lên Google Sheet thành công!"
-                            st.rerun()
+                    if size_val.lower().startswith('size'):
+                        size_val = size_val[4:].strip()
+                        
+                    full_item_name = row['Tên Hàng'] 
+                    
+                    is_delivered = False
+                    if not df_delivered.empty and 'ĐT' in df_delivered.columns and 'Tên Hàng' in df_delivered.columns:
+                        check = df_delivered[(df_delivered['ĐT'].astype(str) == phone_val) & (df_delivered['Tên Hàng'] == full_item_name)]
+                        if not check.empty:
+                            is_delivered = True
+
+                    with st.container(border=True):
+                        st.markdown(f"**Merchandise:** <span class='highlight-text'>{merch_val}</span>", unsafe_allow_html=True)
+                        if pd.notna(row.get('Size áo')) and size_val != '' and size_val.lower() != 'nan':
+                            st.markdown(f"**Size áo:** <span class='highlight-text'>{size_val}</span>", unsafe_allow_html=True)
+                        st.markdown(f"**Số lượng:** <span class='highlight-text'>{qty_val}</span>", unsafe_allow_html=True)
+                        
+                        if is_delivered:
+                            st.button("✅ Đã nhận hàng", key=f"done_{index}", disabled=True)
+                        else:
+                            if st.button("Đã giao hàng", key=f"deliver_{index}"):
+                                mark_as_delivered(phone_val, full_item_name, st.session_state.admin_id)
+                                st.session_state.success_msg = "✅ Đã ghi nhận lên Google Sheet thành công!"
+                                st.rerun()
 
 # --- THỐNG KÊ KHO (CUSTOM HTML TABLE) ---
 st.markdown("---")
