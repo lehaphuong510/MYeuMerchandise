@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -127,7 +127,7 @@ def load_delivered_data():
         return pd.DataFrame(columns=["ĐT", "Tên Hàng", "Người Giao", "Thời Gian"])
 
 def mark_as_delivered(phone, item_name, admin_name):
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    current_time = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
     sheet = client.open_by_url(OUTPUT_SHEET_URL).sheet1
     # Bắn thẳng 1 dòng mới lên Google Sheet Đầu Ra
     sheet.append_row([str(phone), item_name, admin_name, current_time])
@@ -177,16 +177,23 @@ if st.session_state.search_query:
             st.markdown(f"**Thông tin người nhận:** <span class='highlight-text'>{user_name}</span>", unsafe_allow_html=True)
             st.markdown("---")
             
+            # --- LÀM SẠCH DATA ĐÃ GIAO ĐỂ SO SÁNH CHÍNH XÁC ---
+            if not df_delivered.empty and 'ĐT' in df_delivered.columns and 'Tên Hàng' in df_delivered.columns:
+                # Ép kiểu chuẩn: xóa khoảng trắng, xóa số 0 ở đầu, xóa đuôi .0 (nếu Google Sheets tự thêm vào)
+                df_delivered['ĐT_Clean'] = df_delivered['ĐT'].astype(str).str.strip().str.lstrip("0").str.replace(".0", "", regex=False)
+                df_delivered['Tên_Hàng_Clean'] = df_delivered['Tên Hàng'].astype(str).str.strip()
+            
             # --- KIỂM TRA XEM ĐÃ NHẬN ĐỦ TOÀN BỘ CHƯA ---
             total_items = len(matched_df)
             delivered_count = 0
             
             for _, row in matched_df.iterrows():
-                phone_val = str(row['ĐT'])
-                full_item_name = row['Tên Hàng']
+                # Làm sạch số điện thoại lấy từ file gốc
+                phone_val = str(row['ĐT']).strip().lstrip("0").replace(".0", "")
+                full_item_name = str(row['Tên Hàng']).strip()
                 
-                if not df_delivered.empty and 'ĐT' in df_delivered.columns and 'Tên Hàng' in df_delivered.columns:
-                    check = df_delivered[(df_delivered['ĐT'].astype(str) == phone_val) & (df_delivered['Tên Hàng'] == full_item_name)]
+                if not df_delivered.empty and 'ĐT_Clean' in df_delivered.columns:
+                    check = df_delivered[(df_delivered['ĐT_Clean'] == phone_val) & (df_delivered['Tên_Hàng_Clean'] == full_item_name)]
                     if not check.empty:
                         delivered_count += 1
                         
@@ -197,7 +204,9 @@ if st.session_state.search_query:
             else:
                 # Nếu chưa nhận hoặc nhận chưa đủ, hiển thị danh sách như bình thường
                 for index, row in matched_df.iterrows():
-                    phone_val = str(row['ĐT'])
+                    raw_phone = str(row['ĐT'])
+                    phone_val = raw_phone.strip().lstrip("0").replace(".0", "")
+                    
                     merch_val = str(row.get('Loại Merchandise', ''))
                     qty_val = row.get('SL', '0')
                     size_val = str(row.get('Size áo', '')).strip()
@@ -205,11 +214,11 @@ if st.session_state.search_query:
                     if size_val.lower().startswith('size'):
                         size_val = size_val[4:].strip()
                         
-                    full_item_name = row['Tên Hàng'] 
+                    full_item_name = str(row['Tên Hàng']).strip() 
                     
                     is_delivered = False
-                    if not df_delivered.empty and 'ĐT' in df_delivered.columns and 'Tên Hàng' in df_delivered.columns:
-                        check = df_delivered[(df_delivered['ĐT'].astype(str) == phone_val) & (df_delivered['Tên Hàng'] == full_item_name)]
+                    if not df_delivered.empty and 'ĐT_Clean' in df_delivered.columns:
+                        check = df_delivered[(df_delivered['ĐT_Clean'] == phone_val) & (df_delivered['Tên_Hàng_Clean'] == full_item_name)]
                         if not check.empty:
                             is_delivered = True
 
@@ -223,7 +232,8 @@ if st.session_state.search_query:
                             st.button("✅ Đã nhận hàng", key=f"done_{index}", disabled=True)
                         else:
                             if st.button("Đã giao hàng", key=f"deliver_{index}"):
-                                mark_as_delivered(phone_val, full_item_name, st.session_state.admin_id)
+                                # Vẫn giữ nguyên raw_phone để bắn lên Google Sheets có đủ số 0 cho đẹp
+                                mark_as_delivered(raw_phone, full_item_name, st.session_state.admin_id)
                                 st.session_state.success_msg = "✅ Đã ghi nhận lên Google Sheet thành công!"
                                 st.rerun()
 
