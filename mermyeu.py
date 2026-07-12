@@ -2,12 +2,35 @@ import streamlit as st
 import pandas as pd
 import os
 import time
+from datetime import datetime
+import gspread
+from google.oauth2.service_account import Credentials
 
-# --- KHỞI TẠO BIẾN TRẠNG THÁI (SESSION STATE) ---
+# --- CẤU HÌNH BẢO MẬT & SESSION ---
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "admin_id" not in st.session_state:
+    st.session_state.admin_id = ""
 if "search_query" not in st.session_state:
     st.session_state.search_query = ""
 if "success_msg" not in st.session_state:
     st.session_state.success_msg = ""
+
+# Danh sách mật khẩu cấp riêng cho từng người
+VALID_PASSWORDS = {"CHECKIN-AN": "An", "CHECKIN-BINH": "Bình", "CHECKIN-CHAU": "Châu", "MYEU-ADMIN": "Admin"}
+
+if not st.session_state.authenticated:
+    st.markdown("### 🔒 Cổng kiểm soát nội bộ")
+    password = st.text_input("Nhập mã truy cập cá nhân:", type="password")
+    
+    if st.button("Đăng nhập"):
+        if password in VALID_PASSWORDS: 
+            st.session_state.authenticated = True
+            st.session_state.admin_id = VALID_PASSWORDS[password] 
+            st.rerun()
+        else:
+            st.error("Mã không hợp lệ hoặc đã bị vô hiệu hóa!")
+    st.stop()
 
 # --- CẤU HÌNH GIAO DIỆN ---
 st.set_page_config(page_title="MYÊU MERCHANDISE", layout="centered")
@@ -23,15 +46,8 @@ st.markdown("""
         line-height: 1.2;
         margin-bottom: 25px;
     }
-    .main-title span {
-        display: block;
-        white-space: nowrap; 
-    }
-    .highlight-text {
-        color: #C71585;
-        font-weight: bold;
-        font-size: 1.1rem;
-    }
+    .main-title span { display: block; white-space: nowrap; }
+    .highlight-text { color: #C71585; font-weight: bold; font-size: 1.1rem; }
     .section-title {
         background: linear-gradient(90deg, #C71585, #8B008B);
         -webkit-background-clip: text;
@@ -61,8 +77,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Hiển thị Title
 st.markdown('<div class="main-title"><span>MYÊU MERCHANDISE</span><span>PICK AT EVENT</span></div>', unsafe_allow_html=True)
+st.caption(f"👤 Đang trực ca: **{st.session_state.admin_id}**")
 
 if st.session_state.success_msg:
     st.success(st.session_state.success_msg)
@@ -70,36 +86,51 @@ if st.session_state.success_msg:
 
 # --- THIẾT LẬP DỮ LIỆU ---
 GSHEET_URL = "https://docs.google.com/spreadsheets/d/1tHLQoD_HkU9l_aqXnidH840y_KjO-T9F_3lGpRfQqW4/export?format=csv&gid=724869545"
-DELIVERED_FILE = "delivered_log.csv"
+
+# [QUAN TRỌNG]: DÁN LINK SHEET ĐẦU RA CỦA M VÀO ĐÂY
+OUTPUT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1zSeYfiaSFJNdXMOZnwG7WsW0b33v-rbt0EruvMS_aA0/edit"
+
+# --- KẾT NỐI GOOGLE SHEETS API ---
+@st.cache_resource
+def get_gspread_client():
+    # Gọi API JSON từ Streamlit Secrets
+    scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scopes)
+    client = gspread.authorize(creds)
+    return client
+
+client = get_gspread_client()
 
 @st.cache_data(ttl=5)
 def load_main_data():
     try:
         df = pd.read_csv(GSHEET_URL, dtype=str)
-        
-        # BẢO HIỂM 1: Gọt sạch các khoảng trắng dư thừa ở tên cột
         df.columns = df.columns.str.strip()
-        
         if '4 Số đuôi' in df.columns:
             df['4 Số đuôi'] = df['4 Số đuôi'].str.replace('.0', '', regex=False).str.zfill(4)
         if 'ĐT' in df.columns:
             df['ĐT'] = df['ĐT'].str.replace('.0', '', regex=False)
         return df
     except Exception as e:
-        st.error("Chưa kết nối được Google Sheet. Vui lòng kiểm tra lại link.")
+        st.error("Chưa kết nối được Google Sheet Đầu Vào.")
         return pd.DataFrame()
 
 def load_delivered_data():
-    if os.path.exists(DELIVERED_FILE):
-        return pd.read_csv(DELIVERED_FILE)
-    return pd.DataFrame(columns=["ĐT", "Tên Hàng"])
+    try:
+        sheet = client.open_by_url(OUTPUT_SHEET_URL).sheet1
+        records = sheet.get_all_records()
+        if records:
+            return pd.DataFrame(records)
+        return pd.DataFrame(columns=["ĐT", "Tên Hàng", "Người Giao", "Thời Gian"])
+    except Exception as e:
+        st.warning(f"Chưa đọc được Sheet Đầu Ra: {e}")
+        return pd.DataFrame(columns=["ĐT", "Tên Hàng", "Người Giao", "Thời Gian"])
 
-def mark_as_delivered(phone, item_name):
-    new_record = pd.DataFrame([{"ĐT": str(phone), "Tên Hàng": item_name}])
-    if os.path.exists(DELIVERED_FILE):
-        new_record.to_csv(DELIVERED_FILE, mode='a', header=False, index=False)
-    else:
-        new_record.to_csv(DELIVERED_FILE, index=False)
+def mark_as_delivered(phone, item_name, admin_name):
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    sheet = client.open_by_url(OUTPUT_SHEET_URL).sheet1
+    # Bắn thẳng 1 dòng mới lên Google Sheet Đầu Ra
+    sheet.append_row([str(phone), item_name, admin_name, current_time])
 
 df_main = load_main_data()
 df_delivered = load_delivered_data()
@@ -110,7 +141,6 @@ if not df_main.empty:
         merch = str(row.get('Loại Merchandise', '')).strip()
         size = str(row.get('Size áo', '')).strip()
         
-        # BẢO HIỂM TỰ ĐỘNG GỌT CHỮ SIZE ĐỂ KHÔNG BỊ LẶP
         if size.lower().startswith('size'):
             size = size[4:].strip()
 
@@ -153,15 +183,14 @@ if st.session_state.search_query:
                 qty_val = row.get('SL', '0')
                 size_val = str(row.get('Size áo', '')).strip()
                 
-                # Làm sạch size_val trên giao diện người nhận
                 if size_val.lower().startswith('size'):
                     size_val = size_val[4:].strip()
                     
                 full_item_name = row['Tên Hàng'] 
                 
                 is_delivered = False
-                if not df_delivered.empty:
-                    check = df_delivered[(df_delivered['ĐT'] == phone_val) & (df_delivered['Tên Hàng'] == full_item_name)]
+                if not df_delivered.empty and 'ĐT' in df_delivered.columns and 'Tên Hàng' in df_delivered.columns:
+                    check = df_delivered[(df_delivered['ĐT'].astype(str) == phone_val) & (df_delivered['Tên Hàng'] == full_item_name)]
                     if not check.empty:
                         is_delivered = True
 
@@ -175,8 +204,8 @@ if st.session_state.search_query:
                         st.button("✅ Đã nhận hàng", key=f"done_{index}", disabled=True)
                     else:
                         if st.button("Đã giao hàng", key=f"deliver_{index}"):
-                            mark_as_delivered(phone_val, full_item_name)
-                            st.session_state.success_msg = "✅ Đã ghi nhận và cập nhật Kho thành công!"
+                            mark_as_delivered(phone_val, full_item_name, st.session_state.admin_id)
+                            st.session_state.success_msg = "✅ Đã ghi nhận lên Google Sheet thành công!"
                             st.rerun()
 
 # --- THỐNG KÊ KHO (CUSTOM HTML TABLE) ---
@@ -199,7 +228,6 @@ if not df_main.empty:
         merch_df = df_main[df_main['Loại Merchandise'] == merch]
         total_sl = merch_df['SL'].sum()
         
-        # BẢO HIỂM 2 & 3: Dùng .get() và gom logic xử lý an toàn
         if 'Size áo' in merch_df.columns:
             sizes = merch_df['Size áo'].dropna().unique()
         else:
@@ -207,7 +235,6 @@ if not df_main.empty:
             
         valid_sizes = [s for s in sizes if str(s).strip() != '' and str(s).lower() != 'nan']
         
-        # Hàm làm sạch size cho việc sort và hiển thị
         def clean_size_for_sort(sz):
             sz = str(sz).strip()
             if sz.lower().startswith('size'):
@@ -226,7 +253,7 @@ if not df_main.empty:
             size_df = merch_df[merch_df['Size áo'] == raw_size]
             size_sl = size_df['SL'].sum()
             
-            size_delivered = len(df_delivered[df_delivered['Tên Hàng'] == full_item_name]) if not df_delivered.empty else 0
+            size_delivered = len(df_delivered[df_delivered['Tên Hàng'] == full_item_name]) if (not df_delivered.empty and 'Tên Hàng' in df_delivered.columns) else 0
             size_remain = size_sl - size_delivered
             total_delivered_for_merch += size_delivered
             
@@ -236,7 +263,7 @@ if not df_main.empty:
             size_rows_html += f"<td style='padding: 8px;'>{int(size_delivered)}</td>"
             size_rows_html += f"<td style='padding: 8px;'>{int(size_remain)}</td></tr>"
             
-        no_size_delivered = len(df_delivered[df_delivered['Tên Hàng'] == merch]) if not df_delivered.empty else 0
+        no_size_delivered = len(df_delivered[df_delivered['Tên Hàng'] == merch]) if (not df_delivered.empty and 'Tên Hàng' in df_delivered.columns) else 0
         total_delivered_for_merch += no_size_delivered
         total_remain = total_sl - total_delivered_for_merch
         
@@ -252,20 +279,3 @@ if not df_main.empty:
 
     html_table += "</table>"
     st.markdown(html_table, unsafe_allow_html=True)
-
-# --- ADMIN VIEW ---
-st.markdown("---")
-with st.expander("🛠️ Admin: Quản lý File Giao Hàng & Tải Data"):
-    st.markdown("**Cách lấy file data đầu ra:** Chỉ cần bấm vào nút tải xuống bên dưới.")
-    
-    # ÉP CHUẨN UTF-8-SIG (CÓ BOM) ĐỂ EXCEL KHÔNG BỊ LỖI FONT TIẾNG VIỆT
-    if not df_delivered.empty:
-        csv_data = df_delivered.to_csv(index=False).encode('utf-8-sig')
-        st.download_button(
-            label="📥 Tải file Danh sách Đã giao hàng (.csv)",
-            data=csv_data,
-            file_name="danh_sach_da_giao.csv",
-            mime="text/csv"
-        )
-    else:
-        st.info("Chưa có ai nhận hàng nên chưa có file.")
