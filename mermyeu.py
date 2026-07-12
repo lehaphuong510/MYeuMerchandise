@@ -255,7 +255,7 @@ if not df_main.empty:
 
 # --- ADMIN VIEW ---
 st.markdown("---")
-with st.expander("🛠️ Admin: Quản lý File Giao Hàng & Reset"):
+with st.expander("🛠️ Admin: Quản lý File Giao Hàng & Tải Data"):
     st.markdown("**Cách lấy file data đầu ra:** Chỉ cần bấm vào nút tải xuống bên dưới.")
     
     # ÉP CHUẨN UTF-8-SIG (CÓ BOM) ĐỂ EXCEL KHÔNG BỊ LỖI FONT TIẾNG VIỆT
@@ -269,10 +269,3 @@ with st.expander("🛠️ Admin: Quản lý File Giao Hàng & Reset"):
         )
     else:
         st.info("Chưa có ai nhận hàng nên chưa có file.")
-        
-    st.warning("⚠️ Nút này sẽ xóa toàn bộ lịch sử test!")
-    if st.button("Xóa trắng dữ liệu Test"):
-        if os.path.exists(DELIVERED_FILE):
-            os.remove(DELIVERED_FILE)
-            st.session_state.success_msg = "✅ Đã reset thành công! Bắt đầu test mới."
-            st.rerun()
