@@ -49,6 +49,32 @@ st.markdown("""
             font-size: 1.6rem; /* Thu nhỏ gọn lại để fit màn mobile */
         }
     }
+    /* Đổi màu Gradient Hồng Đậm sang Tím cho tất cả Nút bấm */
+    div.stButton > button {
+        background: linear-gradient(90deg, #C71585, #8B008B) !important;
+        color: white !important;
+        border: none !important;
+        font-weight: bold !important;
+        border-radius: 8px !important;
+        transition: 0.3s;
+    }
+    
+    /* Hiệu ứng khi lướt chuột qua nút */
+    div.stButton > button:hover {
+        background: linear-gradient(90deg, #8B008B, #C71585) !important;
+        box-shadow: 0px 4px 10px rgba(139, 0, 139, 0.4) !important;
+    }
+
+    /* Style Gradient cho dòng Thống kê */
+    .section-title {
+        background: linear-gradient(90deg, #C71585, #8B008B);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 900;
+        font-size: 1.6rem;
+        margin-top: 20px;
+        margin-bottom: 15px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -62,12 +88,13 @@ DELIVERED_FILE = "delivered_log.csv"
 @st.cache_data(ttl=5) # Load lại data gốc mỗi 5s
 def load_main_data():
     try:
-        df = pd.read_csv(GSHEET_URL)
-        # Ép kiểu string để tránh lỗi khi search
+        # THÊM dtype=str Ở ĐÂY để giữ nguyên số 0 ở đầu
+        df = pd.read_csv(GSHEET_URL, dtype=str)
+        
         if '4 Số đuôi' in df.columns:
-            df['4 Số đuôi'] = df['4 Số đuôi'].astype(str).str.zfill(4).str.replace('.0', '', regex=False)
+            df['4 Số đuôi'] = df['4 Số đuôi'].str.replace('.0', '', regex=False).str.zfill(4)
         if 'ĐT' in df.columns:
-            df['ĐT'] = df['ĐT'].astype(str).str.replace('.0', '', regex=False)
+            df['ĐT'] = df['ĐT'].str.replace('.0', '', regex=False)
         return df
     except Exception as e:
         st.error("Chưa kết nối được Google Sheet. Vui lòng kiểm tra lại link.")
@@ -148,7 +175,7 @@ if st.button("Tìm giúp MYêu", type="primary"):
 
 # --- THỐNG KÊ (DASHBOARD REAL-TIME) ---
 st.markdown("---")
-st.markdown("### 📊 Thống kê kho Merchandise")
+st.markdown('<div class="section-title">📊 THỐNG KÊ KHO MERCHANDISE</div>', unsafe_allow_html=True)
 
 if not df_main.empty:
     # Gom nhóm tính tổng số lượng phải giao theo từng loại
@@ -169,3 +196,12 @@ if not df_main.empty:
     summary_df['Còn lại'] = summary_df['Tổng SL'] - summary_df['Đã nhận']
 
     st.dataframe(summary_df, use_container_width=True, hide_index=True)
+
+st.markdown("---")
+with st.expander("🛠️ Admin: Reset Dữ liệu Test"):
+    st.warning("Nút này sẽ xóa toàn bộ lịch sử 'Đã giao hàng'. Chỉ dùng khi test!")
+    if st.button("Xóa trắng dữ liệu"):
+        if os.path.exists(DELIVERED_FILE):
+            os.remove(DELIVERED_FILE)
+            st.success("Đã reset thành công!")
+            st.rerun()
