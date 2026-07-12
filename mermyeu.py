@@ -161,9 +161,9 @@ if st.session_state.search_query:
 
                 with st.container(border=True):
                     st.markdown(f"**Merchandise:** <span class='highlight-text'>{merch_val}</span>", unsafe_allow_html=True)
-                    st.markdown(f"**Số lượng:** <span class='highlight-text'>{qty_val}</span>", unsafe_allow_html=True)
                     if pd.notna(size_val) and size_val != '' and size_val.lower() != 'nan':
                         st.markdown(f"**Size áo:** <span class='highlight-text'>{size_val}</span>", unsafe_allow_html=True)
+                    st.markdown(f"**Số lượng:** <span class='highlight-text'>{qty_val}</span>", unsafe_allow_html=True)
                     
                     if is_delivered:
                         st.button("✅ Đã nhận hàng", key=f"done_{index}", disabled=True)
