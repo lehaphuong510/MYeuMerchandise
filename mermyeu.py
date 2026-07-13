@@ -151,7 +151,7 @@ if not df_main.empty:
         return merch
     df_main['Tên Hàng'] = df_main.apply(get_full_item, axis=1)
 
-# -# --- TÍNH NĂNG TÌM KIẾM ---
+# --- TÍNH NĂNG TÌM KIẾM ---
 # Thêm Radio để TNV chọn cách tìm
 search_mode = st.radio("Chọn chế độ tìm kiếm:", ["Tìm theo Mã đơn hàng", "Tìm theo Số điện thoại"], horizontal=True)
 
@@ -182,76 +182,85 @@ if st.session_state.search_query:
     if matched_df.empty:
         st.warning("Không tìm thấy thông tin phù hợp!")
     else:
-        user_name = matched_df.iloc[0].get('Tên', 'Không rõ')
-        st.markdown(f"**Thông tin người nhận:** <span class='highlight-text'>{user_name}</span>", unsafe_allow_html=True)
-        st.markdown("---")
-        
-        # --- LÀM SẠCH DATA ĐÃ GIAO ---
-        if not df_delivered.empty and 'ĐT' in df_delivered.columns and 'Tên Hàng' in df_delivered.columns:
-            df_delivered['ĐT_Clean'] = df_delivered['ĐT'].astype(str).str.strip().str.lstrip("0").str.replace(".0", "", regex=False)
-            df_delivered['Tên_Hàng_Clean'] = df_delivered['Tên Hàng'].astype(str).str.strip()
-        
-        # --- KIỂM TRA ĐÃ NHẬN ĐỦ CHƯA ---
-        total_items = len(matched_df)
-        delivered_count = 0
-        for _, row in matched_df.iterrows():
-            phone_val = str(row['ĐT']).strip().lstrip("0").replace(".0", "")
-            full_item_name = str(row['Tên Hàng']).strip()
-            if not df_delivered.empty and 'ĐT_Clean' in df_delivered.columns:
-                check = df_delivered[(df_delivered['ĐT_Clean'] == phone_val) & (df_delivered['Tên_Hàng_Clean'] == full_item_name)]
-                if not check.empty: delivered_count += 1
-                    
-        if delivered_count == total_items and not st.session_state.just_delivered:
-            st.success("✅ BẠN NÀY ĐÃ NHẬN TOÀN BỘ HÀNG RỒI!")
-            st.info("Hệ thống đã ẩn chi tiết để tránh nhầm lẫn. Chuyển sang quét bạn tiếp theo nha!")
+        # --- CHỈ CHẶN TRÙNG LẶP KHI TÌM BẰNG SĐT ---
+        is_duplicate = False
+        if st.session_state.search_mode == "Tìm theo Số điện thoại":
+            unique_phones = matched_df['ĐT'].unique()
+            if len(unique_phones) > 1:
+                is_duplicate = True
+
+        if is_duplicate:
+            st.error("⚠️ Có nhiều người trùng 4 số đuôi này! Vui lòng nhập FULL Số điện thoại.")
         else:
-            for index, row in matched_df.iterrows():
-                raw_phone = str(row['ĐT'])
-                phone_val = raw_phone.strip().lstrip("0").replace(".0", "")
-                order_code = str(row.get('Mã đơn hàng', '')).strip()
-                
-                # Bốc lại dữ liệu Size áo, Merchandise, SL
-                merch_val = str(row.get('Loại Merchandise', ''))
-                qty_val = row.get('SL', '0')
-                size_val = str(row.get('Size áo', '')).strip()
-                
-                if size_val.lower().startswith('size'):
-                    size_val = size_val[4:].strip()
+            user_name = matched_df.iloc[0].get('Tên', 'Không rõ')
+            st.markdown(f"**Thông tin người nhận:** <span class='highlight-text'>{user_name}</span>", unsafe_allow_html=True)
+            st.markdown("---")
+            
+            # --- LÀM SẠCH DATA ĐÃ GIAO ---
+            if not df_delivered.empty and 'ĐT' in df_delivered.columns and 'Tên Hàng' in df_delivered.columns:
+                df_delivered['ĐT_Clean'] = df_delivered['ĐT'].astype(str).str.strip().str.lstrip("0").str.replace(".0", "", regex=False)
+                df_delivered['Tên_Hàng_Clean'] = df_delivered['Tên Hàng'].astype(str).str.strip()
+            
+            # --- KIỂM TRA ĐÃ NHẬN ĐỦ CHƯA ---
+            total_items = len(matched_df)
+            delivered_count = 0
+            for _, row in matched_df.iterrows():
+                phone_val = str(row['ĐT']).strip().lstrip("0").replace(".0", "")
+                full_item_name = str(row['Tên Hàng']).strip()
+                if not df_delivered.empty and 'ĐT_Clean' in df_delivered.columns:
+                    check = df_delivered[(df_delivered['ĐT_Clean'] == phone_val) & (df_delivered['Tên_Hàng_Clean'] == full_item_name)]
+                    if not check.empty: delivered_count += 1
+                        
+            if delivered_count == total_items and not st.session_state.just_delivered:
+                st.success("✅ BẠN NÀY ĐÃ NHẬN TOÀN BỘ HÀNG RỒI!")
+                st.info("Hệ thống đã ẩn chi tiết để tránh nhầm lẫn. Chuyển sang quét bạn tiếp theo nha!")
+            else:
+                for index, row in matched_df.iterrows():
+                    raw_phone = str(row['ĐT'])
+                    phone_val = raw_phone.strip().lstrip("0").replace(".0", "")
+                    order_code = str(row.get('Mã đơn hàng', '')).strip()
                     
-                full_item_name = str(row['Tên Hàng']).strip() 
-                
-                # LOGIC HIỂN THỊ THÔNG MINH
-                with st.container(border=True):
-                    # Nếu tìm bằng Mã đơn -> Hiện SĐT (xxx9825)
-                    if st.session_state.search_mode == "Tìm theo Mã đơn hàng":
-                        hidden_phone = "xxx" + str(raw_phone)[-4:] if len(str(raw_phone)) >= 4 else "xxx" + str(raw_phone)
-                        st.markdown(f"**SĐT:** <span class='highlight-text'>{hidden_phone}</span>", unsafe_allow_html=True)
-                    # Nếu tìm bằng SĐT -> Hiện Mã đơn (xxxV91)
-                    else:
-                        # Đã sửa: Nối thẳng chữ xxx vào cái Mã ĐH trong sheet
-                        if order_code and order_code.lower() != 'nan':
-                            hidden_order = "xxx" + order_code
-                            st.markdown(f"**Mã ĐH:** <span class='highlight-text'>{hidden_order}</span>", unsafe_allow_html=True)
-
-                    # Hiển thị lại Merchandise, Size áo, Số lượng có CSS class highlight
-                    st.markdown(f"**Merchandise:** <span class='highlight-text'>{merch_val}</span>", unsafe_allow_html=True)
-                    if pd.notna(row.get('Size áo')) and size_val != '' and size_val.lower() != 'nan':
-                        st.markdown(f"**Size áo:** <span class='highlight-text'>{size_val}</span>", unsafe_allow_html=True)
-                    st.markdown(f"**Số lượng:** <span class='highlight-text'>{qty_val}</span>", unsafe_allow_html=True)
+                    # Bốc lại dữ liệu Size áo, Merchandise, SL
+                    merch_val = str(row.get('Loại Merchandise', ''))
+                    qty_val = row.get('SL', '0')
+                    size_val = str(row.get('Size áo', '')).strip()
                     
-                    is_delivered = False
-                    if not df_delivered.empty and 'ĐT_Clean' in df_delivered.columns:
-                        check = df_delivered[(df_delivered['ĐT_Clean'] == phone_val) & (df_delivered['Tên_Hàng_Clean'] == full_item_name)]
-                        if not check.empty: is_delivered = True
+                    if size_val.lower().startswith('size'):
+                        size_val = size_val[4:].strip()
+                        
+                    full_item_name = str(row['Tên Hàng']).strip() 
+                    
+                    # LOGIC HIỂN THỊ THÔNG MINH
+                    with st.container(border=True):
+                        # Nếu tìm bằng Mã đơn -> Hiện SĐT (xxx9825)
+                        if st.session_state.search_mode == "Tìm theo Mã đơn hàng":
+                            hidden_phone = "xxx" + str(raw_phone)[-4:] if len(str(raw_phone)) >= 4 else "xxx" + str(raw_phone)
+                            st.markdown(f"**SĐT:** <span class='highlight-text'>{hidden_phone}</span>", unsafe_allow_html=True)
+                        # Nếu tìm bằng SĐT -> Hiện Mã đơn (xxxV91)
+                        else:
+                            if order_code and order_code.lower() != 'nan':
+                                hidden_order = "xxx" + order_code
+                                st.markdown(f"**Mã ĐH:** <span class='highlight-text'>{hidden_order}</span>", unsafe_allow_html=True)
 
-                    if is_delivered:
-                        st.button("✅ Đã nhận hàng", key=f"done_{index}", disabled=True)
-                    else:
-                        if st.button("Đã giao hàng", key=f"deliver_{index}"):
-                            mark_as_delivered(raw_phone, full_item_name, st.session_state.admin_id)
-                            st.session_state.success_msg = "✅ Đã ghi nhận thành công!"
-                            st.session_state.just_delivered = True 
-                            st.rerun()
+                        # Hiển thị lại Merchandise, Size áo, Số lượng có CSS class highlight
+                        st.markdown(f"**Merchandise:** <span class='highlight-text'>{merch_val}</span>", unsafe_allow_html=True)
+                        if pd.notna(row.get('Size áo')) and size_val != '' and size_val.lower() != 'nan':
+                            st.markdown(f"**Size áo:** <span class='highlight-text'>{size_val}</span>", unsafe_allow_html=True)
+                        st.markdown(f"**Số lượng:** <span class='highlight-text'>{qty_val}</span>", unsafe_allow_html=True)
+                        
+                        is_delivered = False
+                        if not df_delivered.empty and 'ĐT_Clean' in df_delivered.columns:
+                            check = df_delivered[(df_delivered['ĐT_Clean'] == phone_val) & (df_delivered['Tên_Hàng_Clean'] == full_item_name)]
+                            if not check.empty: is_delivered = True
+
+                        if is_delivered:
+                            st.button("✅ Đã nhận hàng", key=f"done_{index}", disabled=True)
+                        else:
+                            if st.button("Đã giao hàng", key=f"deliver_{index}"):
+                                mark_as_delivered(raw_phone, full_item_name, st.session_state.admin_id)
+                                st.session_state.success_msg = "✅ Đã ghi nhận thành công!"
+                                st.session_state.just_delivered = True 
+                                st.rerun()
 
 # --- THỐNG KÊ KHO (CUSTOM HTML TABLE) ---
 st.markdown("---")
