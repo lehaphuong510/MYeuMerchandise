@@ -18,11 +18,10 @@ if "success_msg" not in st.session_state:
 if "just_delivered" not in st.session_state:
     st.session_state.just_delivered = False
 
-# Danh sách mật khẩu cấp riêng cho từng người
 VALID_PASSWORDS = {"CHECKIN-AN": "An", "CHECKIN-BINH": "Bình", "CHECKIN-CHAU": "Châu", "0519": "Lê Phương"}
 
 if not st.session_state.authenticated:
-    st.markdown("### 🔒 Cổng kiểm soát nội bộ")
+    st.markdown("### 🔒 Cổng kiểm soát nội bộ (Trạm Nhập Liệu)")
     password = st.text_input("Nhập mã truy cập cá nhân:", type="password")
     
     if st.button("Đăng nhập"):
@@ -35,7 +34,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # --- CẤU HÌNH GIAO DIỆN ---
-st.set_page_config(page_title="MYÊU MERCHANDISE", layout="centered")
+st.set_page_config(page_title="MYÊU MERCHANDISE - CHECKER", layout="centered")
 
 st.markdown("""
 <style>
@@ -88,18 +87,14 @@ if st.session_state.success_msg:
 
 # --- THIẾT LẬP DỮ LIỆU ---
 GSHEET_URL = "https://docs.google.com/spreadsheets/d/1tHLQoD_HkU9l_aqXnidH840y_KjO-T9F_3lGpRfQqW4/export?format=csv&gid=724869545"
-
-# [QUAN TRỌNG]: DÁN LINK SHEET ĐẦU RA CỦA M VÀO ĐÂY
 OUTPUT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1zSeYfiaSFJNdXMOZnwG7WsW0b33v-rbt0EruvMS_aA0/edit"
 
 # --- KẾT NỐI GOOGLE SHEETS API ---
 @st.cache_resource
 def get_gspread_client():
-    # Gọi API JSON từ Streamlit Secrets
     scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
     creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scopes)
-    client = gspread.authorize(creds)
-    return client
+    return gspread.authorize(creds)
 
 client = get_gspread_client()
 
@@ -123,51 +118,48 @@ def load_delivered_data():
         records = sheet.get_all_records()
         if records:
             return pd.DataFrame(records)
-        return pd.DataFrame(columns=["ĐT", "Tên Hàng", "Người Giao", "Thời Gian"])
+        # Cập nhật đúng 10 cột như m set up
+        return pd.DataFrame(columns=["Thời Gian", "ĐT", "Tên", "Mã đơn hàng", "Loại Merchandise", "Size áo", "SL", "Người Giao", "Status", "Link hình"])
     except Exception as e:
         st.warning(f"Chưa đọc được Sheet Đầu Ra: {e}")
-        return pd.DataFrame(columns=["ĐT", "Tên Hàng", "Người Giao", "Thời Gian"])
+        return pd.DataFrame(columns=["Thời Gian", "ĐT", "Tên", "Mã đơn hàng", "Loại Merchandise", "Size áo", "SL", "Người Giao", "Status", "Link hình"])
 
-def mark_as_delivered(phone, item_name, admin_name):
+# HÀM UPDATE 10 CỘT LÊN SHEET (Bao gồm các biến m hỏi)
+def mark_as_delivered(phone, user_name, order_code, merch_type, size, qty, admin_name):
     current_time = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
     sheet = client.open_by_url(OUTPUT_SHEET_URL).sheet1
-    # Bắn thẳng 1 dòng mới lên Google Sheet Đầu Ra
-    sheet.append_row([str(phone), item_name, admin_name, current_time])
+    
+    # 10 cột chuẩn: Thời Gian - ĐT - Tên - Mã đơn hàng - Loại Merchandise - Size áo - SL - Người Giao - Status - Link hình
+    row_data = [
+        current_time, 
+        str(phone), 
+        str(user_name), 
+        str(order_code), 
+        str(merch_type), 
+        str(size), 
+        str(qty), 
+        str(admin_name), 
+        "Pending", 
+        "" 
+    ]
+    sheet.append_row(row_data)
 
 df_main = load_main_data()
 df_delivered = load_delivered_data()
 
-# Tạo cột Tên Hàng (gộp Tên + Size)
-if not df_main.empty:
-    def get_full_item(row):
-        merch = str(row.get('Loại Merchandise', '')).strip()
-        size = str(row.get('Size áo', '')).strip()
-        
-        if size.lower().startswith('size'):
-            size = size[4:].strip()
-
-        if pd.notna(row.get('Size áo')) and size != '' and size.lower() != 'nan':
-            return f"{merch} (Size {size})"
-        return merch
-    df_main['Tên Hàng'] = df_main.apply(get_full_item, axis=1)
-
 # --- TÍNH NĂNG TÌM KIẾM ---
-# Thêm Radio để TNV chọn cách tìm
 search_mode = st.radio("Chọn chế độ tìm kiếm:", ["Tìm theo Mã đơn hàng", "Tìm theo Số điện thoại"], horizontal=True)
-
 search_input = st.text_input("Nhập thông tin tìm kiếm vào đây", label_visibility="collapsed")
 
 if st.button("Tìm giúp MYêu"):
     st.session_state.search_query = search_input
-    st.session_state.search_mode = search_mode # Lưu mode để hiển thị kết quả
+    st.session_state.search_mode = search_mode 
     st.session_state.just_delivered = False 
 
 if st.session_state.search_query:
     clean_input = st.session_state.search_query.replace(" ", "").upper()
     
-    # 1. Tìm trong cột Mã đơn hàng
     df_main['Mã_Search'] = df_main['Mã đơn hàng'].astype(str).str.strip().str.replace(" ", "").str.upper()
-    # 2. Tìm trong cột Số điện thoại
     df_main['SĐT_Clean'] = df_main['ĐT'].astype(str).str.replace(" ", "", regex=False).str.lstrip("0")
     df_main['4_Số_Cuối'] = df_main['SĐT_Clean'].str[-4:]
     
@@ -176,13 +168,12 @@ if st.session_state.search_query:
             matched_df = df_main[df_main['Mã_Search'].str.endswith(clean_input, na=False)]
         else:
             matched_df = df_main[df_main['Mã_Search'].str.contains(clean_input, na=False)]
-    else: # Tìm theo Số điện thoại
+    else:
         matched_df = df_main[df_main['4_Số_Cuối'].str.endswith(clean_input, na=False) | df_main['SĐT_Clean'].str.contains(clean_input, na=False)]
 
     if matched_df.empty:
         st.warning("Không tìm thấy thông tin phù hợp!")
     else:
-        # --- CHỈ CHẶN TRÙNG LẶP KHI TÌM BẰNG SĐT ---
         is_duplicate = False
         if st.session_state.search_mode == "Tìm theo Số điện thoại":
             unique_phones = matched_df['ĐT'].unique()
@@ -196,19 +187,28 @@ if st.session_state.search_query:
             st.markdown(f"**Thông tin người nhận:** <span class='highlight-text'>{user_name}</span>", unsafe_allow_html=True)
             st.markdown("---")
             
-            # --- LÀM SẠCH DATA ĐÃ GIAO ---
-            if not df_delivered.empty and 'ĐT' in df_delivered.columns and 'Tên Hàng' in df_delivered.columns:
+            # --- LÀM SẠCH DATA ĐÃ GIAO DỰA TRÊN CỘT MỚI ---
+            if not df_delivered.empty and 'ĐT' in df_delivered.columns and 'Loại Merchandise' in df_delivered.columns:
                 df_delivered['ĐT_Clean'] = df_delivered['ĐT'].astype(str).str.strip().str.lstrip("0").str.replace(".0", "", regex=False)
-                df_delivered['Tên_Hàng_Clean'] = df_delivered['Tên Hàng'].astype(str).str.strip()
+                df_delivered['Merch_Clean'] = df_delivered['Loại Merchandise'].astype(str).str.strip()
+                df_delivered['Size_Clean'] = df_delivered['Size áo'].astype(str).str.strip().str.replace("nan", "", case=False)
             
             # --- KIỂM TRA ĐÃ NHẬN ĐỦ CHƯA ---
             total_items = len(matched_df)
             delivered_count = 0
             for _, row in matched_df.iterrows():
                 phone_val = str(row['ĐT']).strip().lstrip("0").replace(".0", "")
-                full_item_name = str(row['Tên Hàng']).strip()
+                merch_val = str(row.get('Loại Merchandise', '')).strip()
+                
+                size_val = str(row.get('Size áo', '')).strip()
+                if size_val.lower().startswith('size'):
+                    size_val = size_val[4:].strip()
+                if size_val.lower() == 'nan': size_val = ""
+
                 if not df_delivered.empty and 'ĐT_Clean' in df_delivered.columns:
-                    check = df_delivered[(df_delivered['ĐT_Clean'] == phone_val) & (df_delivered['Tên_Hàng_Clean'] == full_item_name)]
+                    check = df_delivered[(df_delivered['ĐT_Clean'] == phone_val) & 
+                                         (df_delivered['Merch_Clean'] == merch_val) & 
+                                         (df_delivered['Size_Clean'] == size_val)]
                     if not check.empty: delivered_count += 1
                         
             if delivered_count == total_items and not st.session_state.just_delivered:
@@ -219,50 +219,47 @@ if st.session_state.search_query:
                     raw_phone = str(row['ĐT'])
                     phone_val = raw_phone.strip().lstrip("0").replace(".0", "")
                     order_code = str(row.get('Mã đơn hàng', '')).strip()
+                    user_name_row = str(row.get('Tên', '')).strip()
                     
-                    # Bốc lại dữ liệu Size áo, Merchandise, SL
-                    merch_val = str(row.get('Loại Merchandise', ''))
+                    merch_val = str(row.get('Loại Merchandise', '')).strip()
                     qty_val = row.get('SL', '0')
                     size_val = str(row.get('Size áo', '')).strip()
-                    
                     if size_val.lower().startswith('size'):
                         size_val = size_val[4:].strip()
-                        
-                    full_item_name = str(row['Tên Hàng']).strip() 
+                    if size_val.lower() == 'nan': size_val = ""
                     
-                    # LOGIC HIỂN THỊ THÔNG MINH
                     with st.container(border=True):
-                        # Nếu tìm bằng Mã đơn -> Hiện SĐT (xxx9825)
                         if st.session_state.search_mode == "Tìm theo Mã đơn hàng":
                             hidden_phone = "xxx" + str(raw_phone)[-4:] if len(str(raw_phone)) >= 4 else "xxx" + str(raw_phone)
                             st.markdown(f"**SĐT:** <span class='highlight-text'>{hidden_phone}</span>", unsafe_allow_html=True)
-                        # Nếu tìm bằng SĐT -> Hiện Mã đơn (xxxV91)
                         else:
                             if order_code and order_code.lower() != 'nan':
                                 hidden_order = "xxx" + order_code
                                 st.markdown(f"**Mã ĐH:** <span class='highlight-text'>{hidden_order}</span>", unsafe_allow_html=True)
 
-                        # Hiển thị lại Merchandise, Size áo, Số lượng có CSS class highlight
                         st.markdown(f"**Merchandise:** <span class='highlight-text'>{merch_val}</span>", unsafe_allow_html=True)
-                        if pd.notna(row.get('Size áo')) and size_val != '' and size_val.lower() != 'nan':
+                        if size_val != '':
                             st.markdown(f"**Size áo:** <span class='highlight-text'>{size_val}</span>", unsafe_allow_html=True)
                         st.markdown(f"**Số lượng:** <span class='highlight-text'>{qty_val}</span>", unsafe_allow_html=True)
                         
                         is_delivered = False
                         if not df_delivered.empty and 'ĐT_Clean' in df_delivered.columns:
-                            check = df_delivered[(df_delivered['ĐT_Clean'] == phone_val) & (df_delivered['Tên_Hàng_Clean'] == full_item_name)]
+                            check = df_delivered[(df_delivered['ĐT_Clean'] == phone_val) & 
+                                                 (df_delivered['Merch_Clean'] == merch_val) & 
+                                                 (df_delivered['Size_Clean'] == size_val)]
                             if not check.empty: is_delivered = True
 
                         if is_delivered:
                             st.button("✅ Đã nhận hàng", key=f"done_{index}", disabled=True)
                         else:
+                            # ĐÂY LÀ ĐOẠN ĐÃ TRUYỀN ĐỦ BIẾN NHƯ M HỎI
                             if st.button("Đã giao hàng", key=f"deliver_{index}"):
-                                mark_as_delivered(raw_phone, full_item_name, st.session_state.admin_id)
+                                mark_as_delivered(raw_phone, user_name_row, order_code, merch_val, size_val, qty_val, st.session_state.admin_id)
                                 st.session_state.success_msg = "✅ Đã ghi nhận thành công!"
                                 st.session_state.just_delivered = True 
                                 st.rerun()
 
-# --- THỐNG KÊ KHO (CUSTOM HTML TABLE) ---
+# --- THỐNG KÊ KHO ---
 st.markdown("---")
 st.markdown('<div class="section-title">📊 THỐNG KÊ KHO MERCHANDISE</div>', unsafe_allow_html=True)
 
@@ -282,17 +279,12 @@ if not df_main.empty:
         merch_df = df_main[df_main['Loại Merchandise'] == merch]
         total_sl = merch_df['SL'].sum()
         
-        if 'Size áo' in merch_df.columns:
-            sizes = merch_df['Size áo'].dropna().unique()
-        else:
-            sizes = []
-            
+        sizes = merch_df['Size áo'].dropna().unique() if 'Size áo' in merch_df.columns else []
         valid_sizes = [s for s in sizes if str(s).strip() != '' and str(s).lower() != 'nan']
         
         def clean_size_for_sort(sz):
             sz = str(sz).strip()
-            if sz.lower().startswith('size'):
-                sz = sz[4:].strip()
+            if sz.lower().startswith('size'): sz = sz[4:].strip()
             return sz.upper()
             
         size_order = {"S": 1, "M": 2, "L": 3, "XL": 4, "XXL": 5}
@@ -303,11 +295,14 @@ if not df_main.empty:
         
         for raw_size in valid_sizes:
             clean_size = clean_size_for_sort(raw_size)
-            full_item_name = f"{merch} (Size {clean_size})"
-            size_df = merch_df[merch_df['Size áo'] == raw_size]
-            size_sl = size_df['SL'].sum()
+            size_sl = merch_df[merch_df['Size áo'] == raw_size]['SL'].sum()
             
-            size_delivered = len(df_delivered[df_delivered['Tên Hàng'] == full_item_name]) if (not df_delivered.empty and 'Tên Hàng' in df_delivered.columns) else 0
+            size_delivered = 0
+            if not df_delivered.empty and 'Loại Merchandise' in df_delivered.columns:
+                # Đếm dựa trên 2 cột Merchandise và Size
+                size_delivered = len(df_delivered[(df_delivered['Loại Merchandise'].astype(str).str.strip() == merch) & 
+                                                  (df_delivered['Size áo'].astype(str).str.strip().str.replace("nan", "", case=False) == clean_size)])
+            
             size_remain = size_sl - size_delivered
             total_delivered_for_merch += size_delivered
             
@@ -317,10 +312,11 @@ if not df_main.empty:
             size_rows_html += f"<td style='padding: 8px;'>{int(size_delivered)}</td>"
             size_rows_html += f"<td style='padding: 8px;'>{int(size_remain)}</td></tr>"
             
-        no_size_delivered = len(df_delivered[df_delivered['Tên Hàng'] == merch]) if (not df_delivered.empty and 'Tên Hàng' in df_delivered.columns) else 0
-        total_delivered_for_merch += no_size_delivered
+        if not valid_sizes:
+            no_size_delivered = len(df_delivered[df_delivered['Loại Merchandise'].astype(str).str.strip() == merch]) if (not df_delivered.empty and 'Loại Merchandise' in df_delivered.columns) else 0
+            total_delivered_for_merch += no_size_delivered
+            
         total_remain = total_sl - total_delivered_for_merch
-        
         gradient_style = "padding: 12px; font-weight: bold; background: linear-gradient(90deg, #C71585, #8B008B); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"
         
         html_table += f"<tr style='background-color: #fef5fa; border-top: 1px solid #ddd;'>"
@@ -328,7 +324,6 @@ if not df_main.empty:
         html_table += f"<td style='{gradient_style}'>{int(total_sl)}</td>"
         html_table += f"<td style='{gradient_style}'>{int(total_delivered_for_merch)}</td>"
         html_table += f"<td style='{gradient_style}'>{int(total_remain)}</td></tr>"
-        
         html_table += size_rows_html
 
     html_table += "</table>"
