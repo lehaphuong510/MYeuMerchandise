@@ -152,14 +152,14 @@ if not df_main.empty:
     df_main['Tên Hàng'] = df_main.apply(get_full_item, axis=1)
 
 # --- TÍNH NĂNG TÌM KIẾM ---
-st.markdown('**Tìm kiếm đơn hàng:**')
-st.markdown('*Nhập **4 số đuôi điện thoại** HOẶC **3 ký tự đuôi Mã đơn hàng**.*')
+# Thêm Radio để TNV chọn cách tìm
+search_mode = st.radio("Chọn chế độ tìm kiếm:", ["Tìm theo Mã đơn hàng", "Tìm theo Số điện thoại"], horizontal=True)
 
-search_input = st.text_input("Nhập thông tin tìm kiếm vào đây", label_visibility="collapsed")
+search_input = st.text_input("Nhập thông tin tìm kiếm vào đây")
 
 if st.button("Tìm giúp MYêu"):
     st.session_state.search_query = search_input
-    # Hạ cờ xuống khi bấm tìm kiếm mới
+    st.session_state.search_mode = search_mode # Lưu mode để hiển thị kết quả
     st.session_state.just_delivered = False 
 
 if st.session_state.search_query:
@@ -167,99 +167,77 @@ if st.session_state.search_query:
     
     # 1. Tìm trong cột Mã đơn hàng
     df_main['Mã_Search'] = df_main['Mã đơn hàng'].astype(str).str.strip().str.replace(" ", "").str.upper()
-    if len(clean_input) <= 3:
-        cond_order = df_main['Mã_Search'].str.endswith(clean_input, na=False)
-    else:
-        cond_order = df_main['Mã_Search'].str.contains(clean_input, na=False)
-        
-    # 2. Tìm trong cột Số điện thoại (chỉ quét nếu input là số)
-    if clean_input.isdigit():
-        if len(clean_input) <= 4:
-            cond_phone = df_main['4 Số đuôi'].str.contains(clean_input, na=False)
+    # 2. Tìm trong cột Số điện thoại
+    df_main['SĐT_Clean'] = df_main['ĐT'].astype(str).str.replace(" ", "", regex=False).str.lstrip("0")
+    df_main['4_Số_Cuối'] = df_main['SĐT_Clean'].str[-4:]
+    
+    if st.session_state.search_mode == "Tìm theo Mã đơn hàng":
+        if len(clean_input) <= 3:
+            matched_df = df_main[df_main['Mã_Search'].str.endswith(clean_input, na=False)]
         else:
-            core_phone = clean_input.lstrip("0")
-            cond_phone = df_main['ĐT'].astype(str).str.replace(" ", "", regex=False).str.contains(core_phone, na=False)
-    else:
-        # Nếu gõ có chữ (như ABC) thì chắc chắn không phải sđt
-        cond_phone = pd.Series([False] * len(df_main)) 
-        
-    # Lấy dữ liệu thỏa mãn 1 trong 2 điều kiện trên
-    matched_df = df_main[cond_order | cond_phone]
+            matched_df = df_main[df_main['Mã_Search'].str.contains(clean_input, na=False)]
+    else: # Tìm theo Số điện thoại
+        matched_df = df_main[df_main['4_Số_Cuối'].str.endswith(clean_input, na=False) | df_main['SĐT_Clean'].str.contains(clean_input, na=False)]
 
     if matched_df.empty:
         st.warning("Không tìm thấy thông tin phù hợp!")
     else:
-        # Kiểm tra xem có bị trùng người không (Dựa vào số điện thoại)
-        # Bất kể có bao nhiêu đơn, nếu chung 1 sđt thì vẫn là 1 người -> Hiện hết ra!
-        unique_phones = matched_df['ĐT'].unique()
-        if len(unique_phones) > 1:
-            st.error("⚠️ Dữ liệu bị trùng với người khác! Vui lòng nhập FULL Mã đơn hàng hoặc FULL Số điện thoại.")
+        user_name = matched_df.iloc[0].get('Tên', 'Không rõ')
+        st.markdown(f"**Thông tin người nhận:** <span class='highlight-text'>{user_name}</span>", unsafe_allow_html=True)
+        st.markdown("---")
+        
+        # --- LÀM SẠCH DATA ĐÃ GIAO ---
+        if not df_delivered.empty:
+            df_delivered['ĐT_Clean'] = df_delivered['ĐT'].astype(str).str.strip().str.lstrip("0").str.replace(".0", "", regex=False)
+            df_delivered['Tên_Hàng_Clean'] = df_delivered['Tên Hàng'].astype(str).str.strip()
+        
+        # --- KIỂM TRA ĐÃ NHẬN ĐỦ CHƯA ---
+        total_items = len(matched_df)
+        delivered_count = 0
+        for _, row in matched_df.iterrows():
+            phone_val = str(row['ĐT']).strip().lstrip("0").replace(".0", "")
+            full_item_name = str(row['Tên Hàng']).strip()
+            if not df_delivered.empty and 'ĐT_Clean' in df_delivered.columns:
+                check = df_delivered[(df_delivered['ĐT_Clean'] == phone_val) & (df_delivered['Tên_Hàng_Clean'] == full_item_name)]
+                if not check.empty: delivered_count += 1
+                    
+        if delivered_count == total_items and not st.session_state.just_delivered:
+            st.success("✅ BẠN NÀY ĐÃ NHẬN TOÀN BỘ HÀNG RỒI!")
         else:
-            user_name = matched_df.iloc[0].get('Tên', 'Không rõ')
-            st.markdown(f"**Thông tin người nhận:** <span class='highlight-text'>{user_name}</span>", unsafe_allow_html=True)
-            st.markdown("---")
-            
-            # --- LÀM SẠCH DATA ĐÃ GIAO ĐỂ SO SÁNH CHÍNH XÁC ---
-            if not df_delivered.empty and 'ĐT' in df_delivered.columns and 'Tên Hàng' in df_delivered.columns:
-                df_delivered['ĐT_Clean'] = df_delivered['ĐT'].astype(str).str.strip().str.lstrip("0").str.replace(".0", "", regex=False)
-                df_delivered['Tên_Hàng_Clean'] = df_delivered['Tên Hàng'].astype(str).str.strip()
-            
-            # --- KIỂM TRA XEM ĐÃ NHẬN ĐỦ TOÀN BỘ CHƯA ---
-            total_items = len(matched_df)
-            delivered_count = 0
-            
-            for _, row in matched_df.iterrows():
-                phone_val = str(row['ĐT']).strip().lstrip("0").replace(".0", "")
-                full_item_name = str(row['Tên Hàng']).strip()
+            for index, row in matched_df.iterrows():
+                raw_phone = str(row['ĐT'])
+                phone_val = raw_phone.strip().lstrip("0").replace(".0", "")
+                order_code = str(row.get('Mã đơn hàng', '')).strip()
                 
-                if not df_delivered.empty and 'ĐT_Clean' in df_delivered.columns:
-                    check = df_delivered[(df_delivered['ĐT_Clean'] == phone_val) & (df_delivered['Tên_Hàng_Clean'] == full_item_name)]
-                    if not check.empty:
-                        delivered_count += 1
-                        
-            # NẾU NHẬN ĐỦ RỒI + KHÔNG PHẢI VỪA BẤM NÚT XONG -> GIẤU ĐI
-            if delivered_count == total_items and not st.session_state.just_delivered:
-                st.success("✅ BẠN NÀY ĐÃ NHẬN TOÀN BỘ HÀNG RỒI!")
-                st.info("Hệ thống đã ẩn chi tiết để tránh nhầm lẫn. Chuyển sang quét bạn tiếp theo nha!")
-            else:
-                # NẾU CHƯA NHẬN ĐỦ, HOẶC VỪA MỚI BẤM XONG -> HIỆN LIST RA CHO THẤY
-                for index, row in matched_df.iterrows():
-                    raw_phone = str(row['ĐT'])
-                    phone_val = raw_phone.strip().lstrip("0").replace(".0", "")
-                    
-                    merch_val = str(row.get('Loại Merchandise', ''))
-                    qty_val = row.get('SL', '0')
-                    size_val = str(row.get('Size áo', '')).strip()
-                    order_code = str(row.get('Mã đơn hàng', '')).strip()
-                    
-                    if size_val.lower().startswith('size'):
-                        size_val = size_val[4:].strip()
-                        
-                    full_item_name = str(row['Tên Hàng']).strip() 
+                # LOGIC HIỂN THỊ THÔNG MINH
+                st.container(border=True)
+                with st.container():
+                    # Nếu tìm bằng Mã đơn -> Hiện SĐT (xxx9825)
+                    if st.session_state.search_mode == "Tìm theo Mã đơn hàng":
+                        hidden_phone = "xxx" + str(raw_phone)[-4:]
+                        st.markdown(f"**SĐT:** <span class='highlight-text'>{hidden_phone}</span>", unsafe_allow_html=True)
+                    # Nếu tìm bằng SĐT -> Hiện Mã đơn (xxxV91)
+                    else:
+                        hidden_order = "xxx" + order_code[-3:] if len(order_code) > 3 else order_code
+                        st.markdown(f"**Mã ĐH:** <span class='highlight-text'>{hidden_order}</span>", unsafe_allow_html=True)
+
+                    st.markdown(f"**Merchandise:** {row.get('Loại Merchandise', '')}")
+                    st.markdown(f"**SL:** {row.get('SL', '0')}")
                     
                     is_delivered = False
                     if not df_delivered.empty and 'ĐT_Clean' in df_delivered.columns:
-                        check = df_delivered[(df_delivered['ĐT_Clean'] == phone_val) & (df_delivered['Tên_Hàng_Clean'] == full_item_name)]
-                        if not check.empty:
-                            is_delivered = True
+                        check = df_delivered[(df_delivered['ĐT_Clean'] == phone_val) & (df_delivered['Tên_Hàng_Clean'] == str(row['Tên Hàng']).strip())]
+                        if not check.empty: is_delivered = True
 
-                    with st.container(border=True):
-                        if order_code and order_code.lower() != 'nan':
-                            st.markdown(f"**Mã đơn hàng:** <span class='highlight-text'>{order_code}</span>", unsafe_allow_html=True)
-                            
-                        st.markdown(f"**Merchandise:** <span class='highlight-text'>{merch_val}</span>", unsafe_allow_html=True)
-                        if pd.notna(row.get('Size áo')) and size_val != '' and size_val.lower() != 'nan':
-                            st.markdown(f"**Size áo:** <span class='highlight-text'>{size_val}</span>", unsafe_allow_html=True)
-                        st.markdown(f"**Số lượng:** <span class='highlight-text'>{qty_val}</span>", unsafe_allow_html=True)
-                        
-                        if is_delivered:
-                            st.button("✅ Đã nhận hàng", key=f"done_{index}", disabled=True)
-                        else:
-                            if st.button("Đã giao hàng", key=f"deliver_{index}"):
-                                mark_as_delivered(raw_phone, full_item_name, st.session_state.admin_id)
-                                st.session_state.success_msg = "✅ Đã ghi nhận lên Google Sheet thành công!"
-                                st.session_state.just_delivered = True 
-                                st.rerun()
+                    if is_delivered:
+                        st.button("✅ Đã nhận hàng", key=f"done_{index}", disabled=True)
+                    else:
+                        if st.button("Đã giao hàng", key=f"deliver_{index}"):
+                            mark_as_delivered(raw_phone, str(row['Tên Hàng']).strip(), st.session_state.admin_id)
+                            st.session_state.success_msg = "✅ Đã ghi nhận thành công!"
+                            st.session_state.just_delivered = True 
+                            st.rerun()
+
 
 
 # --- THỐNG KÊ KHO (CUSTOM HTML TABLE) ---
