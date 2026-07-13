@@ -34,7 +34,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # --- CẤU HÌNH GIAO DIỆN ---
-st.set_page_config(page_title="MYÊU MERCHANDISE - CHECKER", layout="centered")
+st.set_page_config(page_title="MYÊU MERCHANDISE - CHECKER", page_icon="🔎", layout="centered")
 
 st.markdown("""
 <style>
