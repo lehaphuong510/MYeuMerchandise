@@ -152,10 +152,10 @@ if not df_main.empty:
     df_main['Tên Hàng'] = df_main.apply(get_full_item, axis=1)
 
 # --- TÍNH NĂNG TÌM KIẾM ---
-st.markdown('**Số điện thoại của người nhận:**')
-st.markdown('*Chỉ cần gõ 4 số đuôi điện thoại, trong trường hợp có người trùng 4 số đuôi, hệ thống sẽ hiện yêu cầu nhập full số điện thoại*')
+st.markdown('**Tìm kiếm đơn hàng:**')
+st.markdown('*Nhập **4 số đuôi điện thoại** HOẶC **3 ký tự đuôi Mã đơn hàng**.*')
 
-search_input = st.text_input("Nhập số điện thoại vào đây", label_visibility="collapsed")
+search_input = st.text_input("Nhập thông tin tìm kiếm vào đây", label_visibility="collapsed")
 
 if st.button("Tìm giúp MYêu"):
     st.session_state.search_query = search_input
@@ -163,19 +163,37 @@ if st.button("Tìm giúp MYêu"):
     st.session_state.just_delivered = False 
 
 if st.session_state.search_query:
-    clean_input = st.session_state.search_query.replace(" ", "")
-    if len(clean_input) <= 4:
-        matched_df = df_main[df_main['4 Số đuôi'].str.contains(clean_input, na=False)]
+    clean_input = st.session_state.search_query.replace(" ", "").upper()
+    
+    # 1. Tìm trong cột Mã đơn hàng
+    df_main['Mã_Search'] = df_main['Mã đơn hàng'].astype(str).str.strip().str.replace(" ", "").str.upper()
+    if len(clean_input) <= 3:
+        cond_order = df_main['Mã_Search'].str.endswith(clean_input, na=False)
     else:
-        core_phone = clean_input.lstrip("0")
-        matched_df = df_main[df_main['ĐT'].astype(str).str.replace(" ", "", regex=False).str.contains(core_phone, na=False)]
+        cond_order = df_main['Mã_Search'].str.contains(clean_input, na=False)
+        
+    # 2. Tìm trong cột Số điện thoại (chỉ quét nếu input là số)
+    if clean_input.isdigit():
+        if len(clean_input) <= 4:
+            cond_phone = df_main['4 Số đuôi'].str.contains(clean_input, na=False)
+        else:
+            core_phone = clean_input.lstrip("0")
+            cond_phone = df_main['ĐT'].astype(str).str.replace(" ", "", regex=False).str.contains(core_phone, na=False)
+    else:
+        # Nếu gõ có chữ (như ABC) thì chắc chắn không phải sđt
+        cond_phone = pd.Series([False] * len(df_main)) 
+        
+    # Lấy dữ liệu thỏa mãn 1 trong 2 điều kiện trên
+    matched_df = df_main[cond_order | cond_phone]
 
     if matched_df.empty:
         st.warning("Không tìm thấy thông tin phù hợp!")
     else:
+        # Kiểm tra xem có bị trùng người không (Dựa vào số điện thoại)
+        # Bất kể có bao nhiêu đơn, nếu chung 1 sđt thì vẫn là 1 người -> Hiện hết ra!
         unique_phones = matched_df['ĐT'].unique()
         if len(unique_phones) > 1:
-            st.error("⚠️ Nhập full số điện thoại nha (Có nhiều người trùng 4 số đuôi này)")
+            st.error("⚠️ Dữ liệu bị trùng với người khác! Vui lòng nhập FULL Mã đơn hàng hoặc FULL Số điện thoại.")
         else:
             user_name = matched_df.iloc[0].get('Tên', 'Không rõ')
             st.markdown(f"**Thông tin người nhận:** <span class='highlight-text'>{user_name}</span>", unsafe_allow_html=True)
@@ -212,6 +230,7 @@ if st.session_state.search_query:
                     merch_val = str(row.get('Loại Merchandise', ''))
                     qty_val = row.get('SL', '0')
                     size_val = str(row.get('Size áo', '')).strip()
+                    order_code = str(row.get('Mã đơn hàng', '')).strip()
                     
                     if size_val.lower().startswith('size'):
                         size_val = size_val[4:].strip()
@@ -225,6 +244,9 @@ if st.session_state.search_query:
                             is_delivered = True
 
                     with st.container(border=True):
+                        if order_code and order_code.lower() != 'nan':
+                            st.markdown(f"**Mã đơn hàng:** <span class='highlight-text'>{order_code}</span>", unsafe_allow_html=True)
+                            
                         st.markdown(f"**Merchandise:** <span class='highlight-text'>{merch_val}</span>", unsafe_allow_html=True)
                         if pd.notna(row.get('Size áo')) and size_val != '' and size_val.lower() != 'nan':
                             st.markdown(f"**Size áo:** <span class='highlight-text'>{size_val}</span>", unsafe_allow_html=True)
@@ -236,9 +258,9 @@ if st.session_state.search_query:
                             if st.button("Đã giao hàng", key=f"deliver_{index}"):
                                 mark_as_delivered(raw_phone, full_item_name, st.session_state.admin_id)
                                 st.session_state.success_msg = "✅ Đã ghi nhận lên Google Sheet thành công!"
-                                # Cắm cờ báo hiệu là "Tao mới bấm đó, đừng có ẩn của tao nha!"
                                 st.session_state.just_delivered = True 
                                 st.rerun()
+
 
 # --- THỐNG KÊ KHO (CUSTOM HTML TABLE) ---
 st.markdown("---")
