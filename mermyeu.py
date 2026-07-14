@@ -124,6 +124,16 @@ st.markdown("""
         opacity: 0.8 !important;
         border: none !important;
     }
+    
+    /* FIX RESPONSIVE ÉP FONT SIZE TRÊN ĐIỆN THOẠI */
+    @media screen and (max-width: 768px) {
+        .main-title { font-size: 1.8rem; }
+        .section-title { font-size: 1.25rem; white-space: nowrap; }
+        .base-text { font-size: 1.1rem; }
+        .highlight-text { font-size: 1.15rem !important; }
+        .order-table th, .order-table td { padding: 8px; font-size: 0.95rem; }
+        .order-table td:first-child { font-size: 0.95rem; }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -221,7 +231,7 @@ if st.session_state.search_query:
                     order_str = ", ".join([str(o) for o in orders if str(o).lower() != 'nan'])
                     st.markdown(f"<div class='base-text'>Mã ĐH: <span class='highlight-text'>{order_str}</span></div>", unsafe_allow_html=True)
 
-                # KIỂM TRA TRẠNG THÁI GIAO HÀNG (ĐÃ CHECK CHƯA)
+                # KIỂM TRA TRẠNG THÁI GIAO HÀNG
                 if not df_delivered.empty and 'ĐT' in df_delivered.columns:
                     df_delivered['ĐT_Clean'] = df_delivered['ĐT'].astype(str).str.strip().str.lstrip("0").str.replace(".0", "", regex=False)
                     df_delivered['Merch_Clean'] = df_delivered['Loại Merchandise'].astype(str).str.strip()
@@ -286,7 +296,6 @@ if st.session_state.search_query:
                     table_html += f"<td {td_class}>{merch}</td>"
                     table_html += f"<td>{tick_html}</td>"
                     
-                    # LOGIC MỚI: TÁCH GỐI ÔMM ĐỂ GỘP 3 CỘT SIZE
                     if merch == "Gối Ômm":
                         qty_val = data["none"]
                         qty_html = f"<span class='highlight-text'>{qty_val}</span>" if qty_val > 0 else ""
