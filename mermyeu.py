@@ -125,14 +125,14 @@ st.markdown("""
         border: none !important;
     }
     
-    /* FIX RESPONSIVE ÉP FONT SIZE TRÊN ĐIỆN THOẠI */
+    /* FIX RESPONSIVE ÉP FONT SIZE TRÊN ĐIỆN THOẠI Y CHANG APP PICKER */
     @media screen and (max-width: 768px) {
         .main-title { font-size: 1.8rem; }
         .section-title { font-size: 1.25rem; white-space: nowrap; }
         .base-text { font-size: 1.1rem; }
         .highlight-text { font-size: 1.15rem !important; }
-        .order-table th, .order-table td { padding: 8px; font-size: 0.95rem; }
-        .order-table td:first-child { font-size: 0.95rem; }
+        .order-table th, .order-table td { padding: 6px; font-size: 0.95rem; }
+        .order-table td:first-child { font-size: 0.85rem; white-space: nowrap; } /* Ép Package lên 1 dòng */
     }
 </style>
 """, unsafe_allow_html=True)
@@ -259,20 +259,20 @@ if st.session_state.search_query:
                     if not is_item_delivered:
                         items_to_append.append(row)
 
-                # CHUẨN BỊ DATA CHO BẢNG SẢN PHẨM
-                fixed_order_items = ["Áo thun MYÊU", "Gối Ômm", "ÔMM MYÊU Package"]
+                # CHUẨN BỊ DATA CHO BẢNG SẢN PHẨM ĐÃ ĐẢO THỨ TỰ
+                fixed_order_items = ["ÔMM MYÊU Package", "Áo thun MYÊU", "Gối Ômm"]
                 agg_items = {
+                    "ÔMM MYÊU Package": {"S": 0, "M": 0, "L": 0, "none": 0, "has_item": False},
                     "Áo thun MYÊU": {"S": 0, "M": 0, "L": 0, "none": 0, "has_item": False},
-                    "Gối Ômm": {"S": 0, "M": 0, "L": 0, "none": 0, "has_item": False},
-                    "ÔMM MYÊU Package": {"S": 0, "M": 0, "L": 0, "none": 0, "has_item": False}
+                    "Gối Ômm": {"S": 0, "M": 0, "L": 0, "none": 0, "has_item": False}
                 }
 
                 for _, item in matched_df.iterrows():
                     raw_merch = str(item.get('Loại Merchandise', '')).strip()
                     merch_key = None
-                    if "áo thun" in raw_merch.lower(): merch_key = "Áo thun MYÊU"
+                    if "package" in raw_merch.lower(): merch_key = "ÔMM MYÊU Package"
+                    elif "áo thun" in raw_merch.lower(): merch_key = "Áo thun MYÊU"
                     elif "gối" in raw_merch.lower(): merch_key = "Gối Ômm"
-                    elif "package" in raw_merch.lower(): merch_key = "ÔMM MYÊU Package"
                     
                     if merch_key:
                         agg_items[merch_key]["has_item"] = True
@@ -284,7 +284,7 @@ if st.session_state.search_query:
                         if size in ["S", "M", "L"]: agg_items[merch_key][size] += qty
                         else: agg_items[merch_key]["none"] += qty
 
-                # VẼ BẢNG KẾT QUẢ ĐÃ UPDATE "GỐI ÔMM GỘP CỘT"
+                # VẼ BẢNG KẾT QUẢ ĐÃ UPDATE "PACKAGE -> ÁO -> GỐI" & "GỐI ÔMM GỘP CỘT"
                 table_html = "<table class='order-table'>"
                 table_html += "<tr><th>Loại Merchandise</th><th>Lấy</th><th>S</th><th>M</th><th>L</th></tr>"
                 for merch in fixed_order_items:
@@ -359,7 +359,16 @@ if not df_main.empty:
     html_table += "<th style='padding: 12px;'>Đã check</th>"
     html_table += "<th style='padding: 12px;'>Còn lại</th></tr>"
     
-    merch_list = df_main.get('Loại Merchandise', pd.Series(dtype=str)).dropna().unique()
+    # HÀM ÉP THỨ TỰ CHO BẢNG THỐNG KÊ (PACKAGE -> ÁO -> GỐI)
+    def custom_sort_merch(m):
+        m_lower = str(m).lower()
+        if "package" in m_lower: return 1
+        elif "áo thun" in m_lower: return 2
+        elif "gối" in m_lower: return 3
+        else: return 4
+        
+    merch_list = df_main.get('Loại Merchandise', pd.Series(dtype=str)).dropna().unique().tolist()
+    merch_list.sort(key=custom_sort_merch)
     
     for merch in merch_list:
         merch_df = df_main[df_main['Loại Merchandise'] == merch]
