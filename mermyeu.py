@@ -12,6 +12,8 @@ if "admin_id" not in st.session_state:
     st.session_state.admin_id = ""
 if "search_query" not in st.session_state:
     st.session_state.search_query = ""
+if "search_input_key" not in st.session_state: # Thêm key để quản lý ô nhập liệu
+    st.session_state.search_input_key = ""
 if "success_msg" not in st.session_state:
     st.session_state.success_msg = ""
 if "just_delivered" not in st.session_state:
@@ -20,7 +22,7 @@ if "just_delivered" not in st.session_state:
 VALID_PASSWORDS = {"CHECKIN-AN": "An", "CHECKIN-BINH": "Bình", "CHECKIN-CHAU": "Châu", "0519": "Lê Phương"}
 
 if not st.session_state.authenticated:
-    st.markdown("### 🔒 Đăng nhập Trạm Nhập Liệu")
+    st.markdown("### 🔒 Cổng kiểm soát nội bộ (Trạm Nhập Liệu)")
     password = st.text_input("Nhập mã truy cập cá nhân:", type="password")
     
     if st.button("Đăng nhập"):
@@ -186,10 +188,12 @@ df_delivered = load_delivered_data()
 
 # --- TÍNH NĂNG TÌM KIẾM ---
 search_mode = st.radio("Chọn chế độ tìm kiếm:", ["Tìm theo Mã đơn hàng", "Tìm theo Số điện thoại"], horizontal=True)
-search_input = st.text_input("Nhập thông tin tìm kiếm vào đây", label_visibility="collapsed")
+
+# Gắn key vào ô nhập liệu để điều khiển nó từ code
+st.text_input("Nhập thông tin tìm kiếm vào đây", key="search_input_key", label_visibility="collapsed")
 
 if st.button("Tìm giúp MYêu"):
-    st.session_state.search_query = search_input
+    st.session_state.search_query = st.session_state.search_input_key
     st.session_state.search_mode = search_mode 
     st.session_state.just_delivered = False 
 
@@ -342,6 +346,11 @@ if st.session_state.search_query:
                                 sheet.append_rows(rows_data) 
                                 
                         st.session_state.success_msg = "✅ Đã ghi nhận thành công toàn bộ đơn!"
+                        
+                        # --- CLEAR THÔNG TIN SAU KHI CHECK THÀNH CÔNG ---
+                        st.session_state.search_query = ""       # Xóa bộ nhớ truy vấn để đóng bảng
+                        st.session_state.search_input_key = ""   # Xóa chữ trong ô nhập liệu
+                        
                         st.session_state.just_delivered = True 
                         st.rerun()
 
