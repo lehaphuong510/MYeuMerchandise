@@ -12,8 +12,8 @@ if "admin_id" not in st.session_state:
     st.session_state.admin_id = ""
 if "search_query" not in st.session_state:
     st.session_state.search_query = ""
-if "search_input_key" not in st.session_state: # Thêm key để quản lý ô nhập liệu
-    st.session_state.search_input_key = ""
+if "input_counter" not in st.session_state: # Thêm biến đếm để reset ô input
+    st.session_state.input_counter = 0
 if "success_msg" not in st.session_state:
     st.session_state.success_msg = ""
 if "just_delivered" not in st.session_state:
@@ -189,11 +189,11 @@ df_delivered = load_delivered_data()
 # --- TÍNH NĂNG TÌM KIẾM ---
 search_mode = st.radio("Chọn chế độ tìm kiếm:", ["Tìm theo Mã đơn hàng", "Tìm theo Số điện thoại"], horizontal=True)
 
-# Gắn key vào ô nhập liệu để điều khiển nó từ code
-st.text_input("Nhập thông tin tìm kiếm vào đây", key="search_input_key", label_visibility="collapsed")
+# Gắn key động vào ô nhập liệu để tự reset sau mỗi lần check thành công
+search_input = st.text_input("Nhập thông tin tìm kiếm vào đây", key=f"search_input_{st.session_state.input_counter}", label_visibility="collapsed")
 
 if st.button("Tìm giúp MYêu"):
-    st.session_state.search_query = st.session_state.search_input_key
+    st.session_state.search_query = search_input
     st.session_state.search_mode = search_mode 
     st.session_state.just_delivered = False 
 
@@ -288,7 +288,7 @@ if st.session_state.search_query:
                         if size in ["S", "M", "L"]: agg_items[merch_key][size] += qty
                         else: agg_items[merch_key]["none"] += qty
 
-                # VẼ BẢNG KẾT QUẢ ĐÃ UPDATE "PACKAGE -> ÁO -> GỐI" & "GỐI ÔMM GỘP CỘT"
+                # VẼ BẢNG KẾT QUẢ
                 table_html = "<table class='order-table'>"
                 table_html += "<tr><th>Loại Merchandise</th><th>Lấy</th><th>S</th><th>M</th><th>L</th></tr>"
                 for merch in fixed_order_items:
@@ -347,9 +347,9 @@ if st.session_state.search_query:
                                 
                         st.session_state.success_msg = "✅ Đã ghi nhận thành công toàn bộ đơn!"
                         
-                        # --- CLEAR THÔNG TIN SAU KHI CHECK THÀNH CÔNG ---
-                        st.session_state.search_query = ""       # Xóa bộ nhớ truy vấn để đóng bảng
-                        st.session_state.search_input_key = ""   # Xóa chữ trong ô nhập liệu
+                        # --- CLEAR THÔNG TIN SAU KHI CHECK THÀNH CÔNG BẰNG CÁCH NHẢY KEY ---
+                        st.session_state.search_query = ""          # Xóa bộ nhớ truy vấn để đóng bảng
+                        st.session_state.input_counter += 1         # Tăng biến đếm để tạo ô input mới trắng bóc
                         
                         st.session_state.just_delivered = True 
                         st.rerun()
