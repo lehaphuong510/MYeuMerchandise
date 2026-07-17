@@ -107,6 +107,23 @@ st.markdown("""
         font-weight: normal !important;
     }
 
+    /* PROGRESS SUMMARY TEXT */
+    .progress-summary {
+        font-family: sans-serif;
+        font-size: 1.3rem;
+        font-weight: bold;
+        color: #333;
+        margin-top: 20px;
+        margin-bottom: 10px;
+        text-align: left;
+    }
+    .progress-summary-highlight {
+        background: linear-gradient(90deg, #C71585, #8B008B);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 900;
+    }
+
     /* CUSTOM NÚT BẤM */
     div.stButton > button {
         background: linear-gradient(90deg, #C71585, #8B008B) !important;
@@ -132,6 +149,7 @@ st.markdown("""
         .section-title { font-size: 1.25rem; white-space: nowrap; }
         .base-text { font-size: 1.1rem; }
         .highlight-text { font-size: 1.15rem !important; }
+        .progress-summary { font-size: 1.15rem; }
         .order-table th, .order-table td { padding: 6px; font-size: 0.95rem; }
         .order-table td:first-child { font-size: 0.85rem; white-space: nowrap; }
     }
@@ -430,3 +448,30 @@ if not df_main.empty:
 
     html_table += "</table>"
     st.markdown(html_table, unsafe_allow_html=True)
+
+    # --- ĐOẠN CODE MỚI BỔ SUNG: TÍNH TOÁN COUNT DISTINCT THEO SĐT ---
+    # Làm sạch cột ĐT ở bảng gốc để đếm chính xác
+    df_main['ĐT_Clean'] = df_main['ĐT'].astype(str).str.strip().str.lstrip("0").str.replace(".0", "", regex=False)
+    all_distinct_users = set(df_main['ĐT_Clean'].dropna().unique())
+    all_distinct_users.discard('nan')
+    all_distinct_users.discard('')
+    
+    yy = len(all_distinct_users)  # Tổng số lượng khách hàng distinct
+    
+    # Lấy danh sách những người đã từng được check thành công (nằm trong file Output)
+    if not df_delivered.empty and 'ĐT' in df_delivered.columns:
+        df_delivered['ĐT_Clean'] = df_delivered['ĐT'].astype(str).str.strip().str.lstrip("0").str.replace(".0", "", regex=False)
+        delivered_users = set(df_delivered['ĐT_Clean'].dropna().unique())
+    else:
+        delivered_users = set()
+        
+    # Số người chưa tới nhận = Tổng số người - Số người đã check nhận hàng
+    not_arrived_users = all_distinct_users - delivered_users
+    xx = len(not_arrived_users) # Số người chưa tới nhận
+    
+    # Hiển thị dòng text tổng quan tiến trình theo tone Hồng -> Tím bold
+    st.markdown(f"""
+    <div class="progress-summary">
+        Số Myêu chưa tới nhận Mer: <span class="progress-summary-highlight">{xx}/{yy}</span>
+    </div>
+    """, unsafe_allow_html=True)
