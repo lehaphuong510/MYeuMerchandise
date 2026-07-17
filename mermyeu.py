@@ -12,7 +12,7 @@ if "admin_id" not in st.session_state:
     st.session_state.admin_id = ""
 if "search_query" not in st.session_state:
     st.session_state.search_query = ""
-if "input_counter" not in st.session_state: # Thêm biến đếm để reset ô input
+if "input_counter" not in st.session_state: 
     st.session_state.input_counter = 0
 if "success_msg" not in st.session_state:
     st.session_state.success_msg = ""
@@ -134,7 +134,7 @@ st.markdown("""
         .base-text { font-size: 1.1rem; }
         .highlight-text { font-size: 1.15rem !important; }
         .order-table th, .order-table td { padding: 6px; font-size: 0.95rem; }
-        .order-table td:first-child { font-size: 0.85rem; white-space: nowrap; } /* Ép Package lên 1 dòng */
+        .order-table td:first-child { font-size: 0.85rem; white-space: nowrap; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -179,9 +179,10 @@ def load_delivered_data():
             df = pd.DataFrame(records)
             df.columns = df.columns.str.strip()
             return df
-        return pd.DataFrame(columns=["Thời Gian", "ĐT", "Tên", "Mã đơn hàng", "Loại Merchandise", "Size áo", "SL", "Người Giao", "Status", "Link hình"])
+        # Đã cập nhật Cột H: Người Check, Cột K: Người Giao
+        return pd.DataFrame(columns=["Thời Gian", "ĐT", "Tên", "Mã đơn hàng", "Loại Merchandise", "Size áo", "SL", "Người Check", "Status", "Link hình", "Người Giao"])
     except Exception as e:
-        return pd.DataFrame(columns=["Thời Gian", "ĐT", "Tên", "Mã đơn hàng", "Loại Merchandise", "Size áo", "SL", "Người Giao", "Status", "Link hình"])
+        return pd.DataFrame(columns=["Thời Gian", "ĐT", "Tên", "Mã đơn hàng", "Loại Merchandise", "Size áo", "SL", "Người Check", "Status", "Link hình", "Người Giao"])
 
 df_main = load_main_data()
 df_delivered = load_delivered_data()
@@ -189,7 +190,6 @@ df_delivered = load_delivered_data()
 # --- TÍNH NĂNG TÌM KIẾM ---
 search_mode = st.radio("Chọn chế độ tìm kiếm:", ["Tìm theo Mã đơn hàng", "Tìm theo Số điện thoại"], horizontal=True)
 
-# Gắn key động vào ô nhập liệu để tự reset sau mỗi lần check thành công
 search_input = st.text_input("Nhập thông tin tìm kiếm vào đây", key=f"search_input_{st.session_state.input_counter}", label_visibility="collapsed")
 
 if st.button("Tìm giúp MYêu"):
@@ -222,10 +222,8 @@ if st.session_state.search_query:
             user_name = matched_df.iloc[0].get('Tên', 'Không rõ')
             
             with st.container(border=True):
-                # Hiển thị Tên
                 st.markdown(f"<div class='base-text'>MYêu: <span class='highlight-text'>{user_name}</span></div>", unsafe_allow_html=True)
                 
-                # Hiển thị SĐT / Mã đơn hàng linh hoạt
                 if st.session_state.search_mode == "Tìm theo Mã đơn hàng":
                     phones = matched_df['ĐT'].unique()
                     phone_str = ", ".join(["xxx" + str(p)[-4:] if len(str(p)) >= 4 else "xxx" + str(p) for p in phones])
@@ -329,6 +327,7 @@ if st.session_state.search_query:
                                 if size_val.lower().startswith('size'): size_val = size_val[4:].strip()
                                 if size_val.lower() == 'nan': size_val = ""
                                 
+                                # Cập nhật danh sách ghi vào Google Sheet thành 11 Cột
                                 rows_data.append([
                                     current_time, 
                                     str(row['ĐT']), 
@@ -337,9 +336,10 @@ if st.session_state.search_query:
                                     str(row.get('Loại Merchandise', '')), 
                                     size_val, 
                                     str(row.get('SL', '0')), 
-                                    st.session_state.admin_id, 
-                                    "Pending", 
-                                    ""
+                                    st.session_state.admin_id, # Cột H (Cột số 8): Người Check
+                                    "Pending",                 # Cột I (Cột số 9): Status
+                                    "",                        # Cột J (Cột số 10): Link hình
+                                    ""                         # Cột K (Cột số 11): Người Giao (giữ chỗ rỗng)
                                 ])
                             
                             if rows_data:
@@ -347,9 +347,8 @@ if st.session_state.search_query:
                                 
                         st.session_state.success_msg = "✅ Đã ghi nhận thành công toàn bộ đơn!"
                         
-                        # --- CLEAR THÔNG TIN SAU KHI CHECK THÀNH CÔNG BẰNG CÁCH NHẢY KEY ---
-                        st.session_state.search_query = ""          # Xóa bộ nhớ truy vấn để đóng bảng
-                        st.session_state.input_counter += 1         # Tăng biến đếm để tạo ô input mới trắng bóc
+                        st.session_state.search_query = ""
+                        st.session_state.input_counter += 1
                         
                         st.session_state.just_delivered = True 
                         st.rerun()
@@ -368,7 +367,6 @@ if not df_main.empty:
     html_table += "<th style='padding: 12px;'>Đã check</th>"
     html_table += "<th style='padding: 12px;'>Còn lại</th></tr>"
     
-    # HÀM ÉP THỨ TỰ CHO BẢNG THỐNG KÊ (PACKAGE -> ÁO -> GỐI)
     def custom_sort_merch(m):
         m_lower = str(m).lower()
         if "package" in m_lower: return 1
