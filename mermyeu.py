@@ -127,7 +127,6 @@ st.markdown("""
         border: none !important;
     }
     
-    /* FIX RESPONSIVE ÉP FONT SIZE TRÊN ĐIỆN THOẠI Y CHANG APP PICKER */
     @media screen and (max-width: 768px) {
         .main-title { font-size: 1.8rem; }
         .section-title { font-size: 1.25rem; white-space: nowrap; }
@@ -179,7 +178,6 @@ def load_delivered_data():
             df = pd.DataFrame(records)
             df.columns = df.columns.str.strip()
             return df
-        # Đã cập nhật Cột H: Người Check, Cột K: Người Giao
         return pd.DataFrame(columns=["Thời Gian", "ĐT", "Tên", "Mã đơn hàng", "Loại Merchandise", "Size áo", "SL", "Người Check", "Status", "Link hình", "Người Giao"])
     except Exception as e:
         return pd.DataFrame(columns=["Thời Gian", "ĐT", "Tên", "Mã đơn hàng", "Loại Merchandise", "Size áo", "SL", "Người Check", "Status", "Link hình", "Người Giao"])
@@ -261,61 +259,61 @@ if st.session_state.search_query:
                     if not is_item_delivered:
                         items_to_append.append(row)
 
-                # CHUẨN BỊ DATA CHO BẢNG SẢN PHẨM ĐÃ ĐẢO THỨ TỰ
-                fixed_order_items = ["ÔMM MYÊU Package", "Áo thun MYÊU", "Gối Ômm"]
-                agg_items = {
-                    "ÔMM MYÊU Package": {"S": 0, "M": 0, "L": 0, "none": 0, "has_item": False},
-                    "Áo thun MYÊU": {"S": 0, "M": 0, "L": 0, "none": 0, "has_item": False},
-                    "Gối Ômm": {"S": 0, "M": 0, "L": 0, "none": 0, "has_item": False}
-                }
-
-                for _, item in matched_df.iterrows():
-                    raw_merch = str(item.get('Loại Merchandise', '')).strip()
-                    merch_key = None
-                    if "package" in raw_merch.lower(): merch_key = "ÔMM MYÊU Package"
-                    elif "áo thun" in raw_merch.lower(): merch_key = "Áo thun MYÊU"
-                    elif "gối" in raw_merch.lower(): merch_key = "Gối Ômm"
-                    
-                    if merch_key:
-                        agg_items[merch_key]["has_item"] = True
-                        size = str(item.get('Size áo', '')).strip().upper()
-                        if size.startswith('SIZE'): size = size[4:].strip()
-                        qty = pd.to_numeric(item.get('SL', 0), errors='coerce')
-                        qty = int(qty) if pd.notna(qty) else 0
-                        
-                        if size in ["S", "M", "L"]: agg_items[merch_key][size] += qty
-                        else: agg_items[merch_key]["none"] += qty
-
-                # VẼ BẢNG KẾT QUẢ
-                table_html = "<table class='order-table'>"
-                table_html += "<tr><th>Loại Merchandise</th><th>Lấy</th><th>S</th><th>M</th><th>L</th></tr>"
-                for merch in fixed_order_items:
-                    data = agg_items[merch]
-                    td_class = "" if data["has_item"] else "class='disabled-text'"
-                    tick_html = "<span class='highlight-text'>✔</span>" if data["has_item"] else ""
-                        
-                    table_html += "<tr>"
-                    table_html += f"<td {td_class}>{merch}</td>"
-                    table_html += f"<td>{tick_html}</td>"
-                    
-                    if merch == "Gối Ômm":
-                        qty_val = data["none"]
-                        qty_html = f"<span class='highlight-text'>{qty_val}</span>" if qty_val > 0 else ""
-                        table_html += f"<td colspan='3'>{qty_html}</td>"
-                    else:
-                        def fmt_qty(q): return f"<span class='highlight-text'>{q}</span>" if q > 0 else ""
-                        table_html += f"<td>{fmt_qty(data['S'])}</td>"
-                        table_html += f"<td>{fmt_qty(data['M'])}</td>"
-                        table_html += f"<td>{fmt_qty(data['L'])}</td>"
-                        
-                    table_html += "</tr>"
-                table_html += "</table>"
-                st.markdown(table_html, unsafe_allow_html=True)
-
-                # NÚT GOM ĐƠN BẤM 1 LẦN 
-                if delivered_count == len(matched_df) and not st.session_state.just_delivered:
-                    st.button("✅ Đã Check", key="done_btn", disabled=True, use_container_width=True)
+                # KIỂM TRA XEM ĐÃ CHECK FULL CHƯA ĐỂ GIẤU BẢNG
+                if delivered_count == len(matched_df) and len(matched_df) > 0:
+                    st.markdown("<hr style='margin: 10px 0px; border-top: 1px dashed #C71585;'>", unsafe_allow_html=True)
+                    st.success("🎉 **BẠN NÀY ĐÃ NHẬN ĐỦ ĐƠN RỒI!** Không cần thao tác thêm.")
                 else:
+                    # NẾU CHƯA CHECK THÌ MỚI VẼ BẢNG VÀ HIỆN NÚT
+                    fixed_order_items = ["ÔMM MYÊU Package", "Áo thun MYÊU", "Gối Ômm"]
+                    agg_items = {
+                        "ÔMM MYÊU Package": {"S": 0, "M": 0, "L": 0, "none": 0, "has_item": False},
+                        "Áo thun MYÊU": {"S": 0, "M": 0, "L": 0, "none": 0, "has_item": False},
+                        "Gối Ômm": {"S": 0, "M": 0, "L": 0, "none": 0, "has_item": False}
+                    }
+
+                    for _, item in matched_df.iterrows():
+                        raw_merch = str(item.get('Loại Merchandise', '')).strip()
+                        merch_key = None
+                        if "package" in raw_merch.lower(): merch_key = "ÔMM MYÊU Package"
+                        elif "áo thun" in raw_merch.lower(): merch_key = "Áo thun MYÊU"
+                        elif "gối" in raw_merch.lower(): merch_key = "Gối Ômm"
+                        
+                        if merch_key:
+                            agg_items[merch_key]["has_item"] = True
+                            size = str(item.get('Size áo', '')).strip().upper()
+                            if size.startswith('SIZE'): size = size[4:].strip()
+                            qty = pd.to_numeric(item.get('SL', 0), errors='coerce')
+                            qty = int(qty) if pd.notna(qty) else 0
+                            
+                            if size in ["S", "M", "L"]: agg_items[merch_key][size] += qty
+                            else: agg_items[merch_key]["none"] += qty
+
+                    table_html = "<table class='order-table'>"
+                    table_html += "<tr><th>Loại Merchandise</th><th>Lấy</th><th>S</th><th>M</th><th>L</th></tr>"
+                    for merch in fixed_order_items:
+                        data = agg_items[merch]
+                        td_class = "" if data["has_item"] else "class='disabled-text'"
+                        tick_html = "<span class='highlight-text'>✔</span>" if data["has_item"] else ""
+                            
+                        table_html += "<tr>"
+                        table_html += f"<td {td_class}>{merch}</td>"
+                        table_html += f"<td>{tick_html}</td>"
+                        
+                        if merch == "Gối Ômm":
+                            qty_val = data["none"]
+                            qty_html = f"<span class='highlight-text'>{qty_val}</span>" if qty_val > 0 else ""
+                            table_html += f"<td colspan='3'>{qty_html}</td>"
+                        else:
+                            def fmt_qty(q): return f"<span class='highlight-text'>{q}</span>" if q > 0 else ""
+                            table_html += f"<td>{fmt_qty(data['S'])}</td>"
+                            table_html += f"<td>{fmt_qty(data['M'])}</td>"
+                            table_html += f"<td>{fmt_qty(data['L'])}</td>"
+                            
+                        table_html += "</tr>"
+                    table_html += "</table>"
+                    st.markdown(table_html, unsafe_allow_html=True)
+
                     if st.button("Check", key="check_btn", use_container_width=True):
                         with st.spinner("Đang ghi nhận vào hệ thống..."):
                             sheet = client.open_by_url(OUTPUT_SHEET_URL).sheet1
@@ -327,7 +325,6 @@ if st.session_state.search_query:
                                 if size_val.lower().startswith('size'): size_val = size_val[4:].strip()
                                 if size_val.lower() == 'nan': size_val = ""
                                 
-                                # Cập nhật danh sách ghi vào Google Sheet thành 11 Cột
                                 rows_data.append([
                                     current_time, 
                                     str(row['ĐT']), 
@@ -336,10 +333,10 @@ if st.session_state.search_query:
                                     str(row.get('Loại Merchandise', '')), 
                                     size_val, 
                                     str(row.get('SL', '0')), 
-                                    st.session_state.admin_id, # Cột H (Cột số 8): Người Check
-                                    "Pending",                 # Cột I (Cột số 9): Status
-                                    "",                        # Cột J (Cột số 10): Link hình
-                                    ""                         # Cột K (Cột số 11): Người Giao (giữ chỗ rỗng)
+                                    st.session_state.admin_id, 
+                                    "Pending",                 
+                                    "",                        
+                                    ""                         
                                 ])
                             
                             if rows_data:
