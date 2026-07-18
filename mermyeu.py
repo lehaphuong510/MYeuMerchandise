@@ -476,24 +476,29 @@ if not df_main.empty:
     </div>
     """, unsafe_allow_html=True)
 
-    # --- XUẤT DANH SÁCH CHI TIẾT NHỮNG NGƯỜI CHƯA ĐẾN (DẠNG EXPANDER) ---
+    # --- XUẤT DANH SÁCH CHI TIẾT NHỮNG NGƯỜI CHƯA ĐẾN (DẠNG EXPANDER CÓ MÃ ĐƠN HÀNG) ---
     if xx > 0:
         df_not_arrived = df_main[df_main['ĐT_Clean'].isin(not_arrived_users)]
         unique_not_arrived = df_not_arrived.drop_duplicates(subset=['ĐT_Clean'])
         
-        with st.expander("📋 Xem danh sách Tên & Số điện thoại chi tiết"):
+        with st.expander("📋 Xem danh sách Tên, Số điện thoại & Mã ĐH"):
             list_html = "<table style='width: 100%; border-collapse: collapse; font-family: sans-serif; text-align: left; margin-bottom: 10px;'>"
             list_html += "<tr style='border-bottom: 2px solid #8B008B; color: #8B008B; background-color: #f9f9f9;'>"
             list_html += "<th style='padding: 8px;'>Tên MYêu</th>"
-            list_html += "<th style='padding: 8px;'>Số Điện Thoại</th></tr>"
+            list_html += "<th style='padding: 8px;'>Số Điện Thoại</th>"
+            list_html += "<th style='padding: 8px;'>Mã ĐH</th></tr>"
             
             for _, row in unique_not_arrived.iterrows():
                 name_val = str(row.get('Tên', 'Không rõ')).strip()
                 phone_val = str(row.get('ĐT', '')).strip().replace(".0", "")
                 
+                order_val = str(row.get('Mã đơn hàng', '')).strip()
+                if order_val.lower() == 'nan': order_val = ""
+                
                 list_html += "<tr style='border-bottom: 1px solid #eee;'>"
                 list_html += f"<td style='padding: 8px; color: #444; font-weight: bold;'>{name_val}</td>"
-                list_html += f"<td style='padding: 8px; color: #C71585;'>{phone_val}</td></tr>"
+                list_html += f"<td style='padding: 8px; color: #C71585;'>{phone_val}</td>"
+                list_html += f"<td style='padding: 8px; color: #023E8A; font-weight: bold;'>{order_val}</td></tr>"
                 
             list_html += "</table>"
             st.markdown(list_html, unsafe_allow_html=True)
