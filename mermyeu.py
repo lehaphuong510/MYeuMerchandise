@@ -489,11 +489,14 @@ if not df_main.empty:
             list_html += "<th style='padding: 8px;'>Mã ĐH</th></tr>"
             
             for _, row in unique_not_arrived.iterrows():
+                phone_clean = str(row['ĐT_Clean'])
                 name_val = str(row.get('Tên', 'Không rõ')).strip()
                 phone_val = str(row.get('ĐT', '')).strip().replace(".0", "")
                 
-                order_val = str(row.get('Mã đơn hàng', '')).strip()
-                if order_val.lower() == 'nan': order_val = ""
+                # Gom TẤT CẢ các mã đơn hàng của người này (ngăn cách bằng dấu phẩy)
+                user_orders = df_not_arrived[df_not_arrived['ĐT_Clean'] == phone_clean]['Mã đơn hàng'].unique()
+                order_list = [str(o).strip() for o in user_orders if str(o).lower() != 'nan' and str(o).strip() != '']
+                order_val = ", ".join(order_list)
                 
                 list_html += "<tr style='border-bottom: 1px solid #eee;'>"
                 list_html += f"<td style='padding: 8px; color: #444; font-weight: bold;'>{name_val}</td>"
