@@ -449,7 +449,7 @@ if not df_main.empty:
     html_table += "</table>"
     st.markdown(html_table, unsafe_allow_html=True)
 
-    # --- ĐOẠN CODE MỚI BỔ SUNG: TÍNH TOÁN COUNT DISTINCT THEO SĐT ---
+    # --- TÍNH TOÁN COUNT DISTINCT THEO SĐT ---
     # Làm sạch cột ĐT ở bảng gốc để đếm chính xác
     df_main['ĐT_Clean'] = df_main['ĐT'].astype(str).str.strip().str.lstrip("0").str.replace(".0", "", regex=False)
     all_distinct_users = set(df_main['ĐT_Clean'].dropna().unique())
@@ -458,20 +458,42 @@ if not df_main.empty:
     
     yy = len(all_distinct_users)  # Tổng số lượng khách hàng distinct
     
-    # Lấy danh sách những người đã từng được check thành công (nằm trong file Output)
+    # Lấy danh sách những người đã từng được check thành công
     if not df_delivered.empty and 'ĐT' in df_delivered.columns:
         df_delivered['ĐT_Clean'] = df_delivered['ĐT'].astype(str).str.strip().str.lstrip("0").str.replace(".0", "", regex=False)
         delivered_users = set(df_delivered['ĐT_Clean'].dropna().unique())
     else:
         delivered_users = set()
         
-    # Số người chưa tới nhận = Tổng số người - Số người đã check nhận hàng
+    # Số người chưa tới nhận
     not_arrived_users = all_distinct_users - delivered_users
-    xx = len(not_arrived_users) # Số người chưa tới nhận
+    xx = len(not_arrived_users) 
     
-    # Hiển thị dòng text tổng quan tiến trình theo tone Hồng -> Tím bold
+    # Hiển thị dòng text tổng quan tiến trình
     st.markdown(f"""
     <div class="progress-summary">
         Số Myêu chưa tới nhận Mer: <span class="progress-summary-highlight">{xx}/{yy}</span>
     </div>
     """, unsafe_allow_html=True)
+
+    # --- XUẤT DANH SÁCH CHI TIẾT NHỮNG NGƯỜI CHƯA ĐẾN (DẠNG EXPANDER) ---
+    if xx > 0:
+        df_not_arrived = df_main[df_main['ĐT_Clean'].isin(not_arrived_users)]
+        unique_not_arrived = df_not_arrived.drop_duplicates(subset=['ĐT_Clean'])
+        
+        with st.expander("📋 Xem danh sách Tên & Số điện thoại chi tiết"):
+            list_html = "<table style='width: 100%; border-collapse: collapse; font-family: sans-serif; text-align: left; margin-bottom: 10px;'>"
+            list_html += "<tr style='border-bottom: 2px solid #8B008B; color: #8B008B; background-color: #f9f9f9;'>"
+            list_html += "<th style='padding: 8px;'>Tên MYêu</th>"
+            list_html += "<th style='padding: 8px;'>Số Điện Thoại</th></tr>"
+            
+            for _, row in unique_not_arrived.iterrows():
+                name_val = str(row.get('Tên', 'Không rõ')).strip()
+                phone_val = str(row.get('ĐT', '')).strip().replace(".0", "")
+                
+                list_html += "<tr style='border-bottom: 1px solid #eee;'>"
+                list_html += f"<td style='padding: 8px; color: #444; font-weight: bold;'>{name_val}</td>"
+                list_html += f"<td style='padding: 8px; color: #C71585;'>{phone_val}</td></tr>"
+                
+            list_html += "</table>"
+            st.markdown(list_html, unsafe_allow_html=True)
